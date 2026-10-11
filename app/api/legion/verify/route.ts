@@ -7,6 +7,7 @@ import {
   normalizeTxHash,
   resolveChain,
   verifyActivityTransaction,
+  verifyBridgeActivity,
   type NetworkMode,
 } from "@/lib/server/txVerification";
 
@@ -58,6 +59,8 @@ type ActivityRow = {
   amount_usd?: number | string | null;
   transaction_hash?: string | null;
   source_network_name?: string | null;
+  destination_network_name?: string | null;
+  onchain_checked_at?: string | null;
   onchain_status?: "verified" | "rejected" | null;
   onchain_chain_id?: number | null;
   onchain_block_time?: string | null;
@@ -130,15 +133,28 @@ function assertTime(ctx: ActionContext) {
 }
 
 const ACTIVITY_COLUMNS =
-  "id, type, timestamp, created_at, amount_usd, transaction_hash, source_network_name, onchain_status, onchain_chain_id, onchain_block_time";
+  "id, type, timestamp, created_at, amount_usd, transaction_hash, source_network_name, destination_network_name, onchain_status, onchain_chain_id, onchain_block_time, onchain_checked_at";
 
-/** Successful, hashed activity rows for the wallet, oldest first. */
+/**
+ * Bridge "rejected" results cached before this instant were produced by the old
+ * rule (hash must be sent by the wallet on the source chain), which wrongly
+ * rejected real bridges whose logged hash is the destination mint. They are
+ * re-checked once under the current rules.
+ */
+const BRIDGE_RULES_EFFECTIVE_AT = Date.parse("2026-10-11T00:00:00.000Z");
+
+/**
+ * Hashed activity rows for the wallet, oldest first. "Pending" is included
+ * because a bridge logged while still settling is never updated afterwards; the
+ * on-chain proof (not the status column) decides whether it counts. "Failed"
+ * rows are excluded.
+ */
 function activityQuery(ctx: ActionContext, typePattern: string | null) {
   let query = supabaseAdmin
     .from("activities")
     .select(ACTIVITY_COLUMNS)
     .eq("wallet_address", ctx.wallet)
-    .eq("status", "Successful")
+    .in("status", ["Successful", "Pending"])
     .not("transaction_hash", "is", null);
 
   query = typePattern
@@ -150,6 +166,15 @@ function activityQuery(ctx: ActionContext, typePattern: string | null) {
   return query
     .order("timestamp", { ascending: true })
     .order("id", { ascending: true });
+}
+
+function rowChains(ctx: ActionContext, row: ActivityRow) {
+  const isBridge = (row.type ?? "").toLowerCase().includes("bridge");
+  return {
+    isBridge,
+    source: resolveChain(row.source_network_name, ctx.mode),
+    destination: isBridge ? resolveChain(row.destination_network_name, ctx.mode) : null,
+  };
 }
 
 /**
@@ -164,16 +189,20 @@ async function resolveRows(
 ): Promise<ResolvedRow[]> {
   const resolved: ResolvedRow[] = [];
 
-  const checkOne = async (row: ActivityRow): Promise<ResolvedRow> => {
+  /** Rows decidable without an RPC call: unusable ones and cached results. */
+  const precheck = (row: ActivityRow): ResolvedRow | null => {
     const hash = normalizeTxHash(row.transaction_hash);
     const fallbackTime = rowTime(row);
     if (!hash) return { row, hash: "", verdict: "skip", occurredAt: fallbackTime };
 
-    const chain = resolveChain(row.source_network_name, ctx.mode);
-    if (!chain) return { row, hash, verdict: "skip", occurredAt: fallbackTime };
+    const chains = rowChains(ctx, row);
+    if (!chains.source && !chains.destination) {
+      return { row, hash, verdict: "skip", occurredAt: fallbackTime };
+    }
 
-    // Cached result for this very chain.
-    if (row.onchain_chain_id === chain.id) {
+    // Cached result for one of this row's chains.
+    const chainIds = [chains.source?.id, chains.destination?.id];
+    if (row.onchain_chain_id != null && chainIds.includes(row.onchain_chain_id)) {
       if (row.onchain_status === "verified") {
         return {
           row,
@@ -182,20 +211,42 @@ async function resolveRows(
           occurredAt: toIso(row.onchain_block_time) ?? fallbackTime,
         };
       }
-      if (row.onchain_status === "rejected") {
+      const checkedAt = row.onchain_checked_at ? Date.parse(row.onchain_checked_at) : 0;
+      const staleBridgeRejection =
+        chains.isBridge && !(checkedAt >= BRIDGE_RULES_EFFECTIVE_AT);
+      if (row.onchain_status === "rejected" && !staleBridgeRejection) {
         return { row, hash, verdict: "rejected", occurredAt: fallbackTime };
       }
     }
+    return null;
+  };
+
+  const checkOne = async (row: ActivityRow): Promise<ResolvedRow> => {
+    const hash = normalizeTxHash(row.transaction_hash) ?? "";
+    const fallbackTime = rowTime(row);
+    // A bridge can be proven on its source chain (burn sent by the wallet) or on
+    // its destination chain (mint received by the wallet); a swap only on its chain.
+    const { isBridge, source: chain, destination: destinationChain } = rowChains(ctx, row);
 
     const createdAt = toIso(row.created_at) ?? fallbackTime;
-    const check = await verifyActivityTransaction({
-      hash,
-      wallet: ctx.wallet,
-      networkName: row.source_network_name,
-      mode: ctx.mode,
-      enforceTarget: (row.type ?? "").toLowerCase().includes("swap"),
-      ageMs: Date.now() - new Date(createdAt).getTime(),
-    });
+    const ageMs = Date.now() - new Date(createdAt).getTime();
+    const check = isBridge
+      ? await verifyBridgeActivity({
+          hash,
+          wallet: ctx.wallet,
+          sourceNetwork: row.source_network_name,
+          destinationNetwork: row.destination_network_name,
+          mode: ctx.mode,
+          ageMs,
+        })
+      : await verifyActivityTransaction({
+          hash,
+          wallet: ctx.wallet,
+          networkName: row.source_network_name,
+          mode: ctx.mode,
+          enforceTarget: (row.type ?? "").toLowerCase().includes("swap"),
+          ageMs,
+        });
 
     if (check.outcome === "verified" || check.outcome === "rejected") {
       const verified = check.outcome === "verified";
@@ -203,7 +254,7 @@ async function resolveRows(
         .from("activities")
         .update({
           onchain_status: check.outcome,
-          onchain_chain_id: chain.id,
+          onchain_chain_id: verified ? check.chainId : (chain?.id ?? destinationChain?.id),
           onchain_block_time: verified ? check.blockTime : null,
           onchain_checked_at: new Date().toISOString(),
         })
@@ -231,19 +282,18 @@ async function resolveRows(
 
     const results = await Promise.all(
       batch.map(async (row) => {
-        const cached =
-          row.onchain_status != null && row.onchain_chain_id != null;
-        if (!cached) {
-          if (budget.fresh <= 0) {
-            return {
-              row,
-              hash: normalizeTxHash(row.transaction_hash) ?? "",
-              verdict: "unavailable" as Verdict,
-              occurredAt: rowTime(row),
-            };
-          }
-          budget.fresh -= 1;
+        const decided = precheck(row);
+        if (decided) return decided;
+
+        if (budget.fresh <= 0) {
+          return {
+            row,
+            hash: normalizeTxHash(row.transaction_hash) ?? "",
+            verdict: "unavailable" as Verdict,
+            occurredAt: rowTime(row),
+          };
         }
+        budget.fresh -= 1;
         return checkOne(row);
       }),
     );
@@ -581,7 +631,24 @@ export async function POST(request: NextRequest) {
       !Array.isArray(body.qualification)
         ? (body.qualification as Record<string, unknown>)
         : {};
-    const minUsd = toNumber(qualification.minUsd);
+    // A bad cutoff/size must be a visible config error (400), never silently
+    // ignored: an ignored `since` would let pre-campaign activity count.
+    const minUsd =
+      qualification.minUsd === 0
+        ? null // 0 simply means "no minimum"
+        : readThreshold(qualification.minUsd, "minUsd", {
+            integer: false,
+            max: MAX_MIN_VOLUME_USD,
+          });
+    let since: string | null = null;
+    if (qualification.since !== undefined && qualification.since !== null) {
+      since = toIso(qualification.since);
+      if (!since) {
+        throw new BadRequestError(
+          "qualification.since must be an ISO date-time, e.g. 2026-10-12T00:00:00Z",
+        );
+      }
+    }
     const network =
       typeof body.subject.network === "string" ? body.subject.network : null;
 
@@ -591,8 +658,8 @@ export async function POST(request: NextRequest) {
       key,
       mode: modeFromNetwork(network),
       qualification,
-      since: toIso(qualification.since),
-      minUsd: minUsd > 0 ? minUsd : null,
+      since,
+      minUsd,
       deadline: startedAt + TOTAL_BUDGET_MS,
     };
 
