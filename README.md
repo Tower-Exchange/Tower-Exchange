@@ -15,19 +15,25 @@ The platform also integrates cross-chain bridging via Circle CCTP, an intelligen
 
 ---
 
+## 🌐 Official Arc Mainnet Deployments (Chain ID: `5042`)
+
+The official verified smart contracts powering Tower Exchange on Arc Mainnet:
+
+| Contract | Mainnet Address (`5042`) | Explorer | Description |
+| :--- | :--- | :--- | :--- |
+| **`TowerSwapExecutor`** | `0xeB8940752Fa12944d3b2D736d51fA36E4dA32BC8` | [Arcscan](https://explorer.arc.io/address/0xeB8940752Fa12944d3b2D736d51fA36E4dA32BC8) | Core stateless atomic multi-DEX fee router |
+| **`TowerFactory` (AMM)** | `0x49Aa1C63EA4E126a88E27A2A7673e6d31D954A3C` | [Arcscan](https://explorer.arc.io/address/0x49Aa1C63EA4E126a88E27A2A7673e6d31D954A3C) | Native AMM registry & pair allowlist |
+| **`TowerRouter` (AMM)** | `0x8CF57F51442834e7ff3dC343F6Be9d7945222F4B` | [Arcscan](https://explorer.arc.io/address/0x8CF57F51442834e7ff3dC343F6Be9d7945222F4B) | Uniswap V2-style AMM router on Arc |
+| **`USDC / EURC` Pool** | `0x7584fD830AdA73DAf6169a2F72dc8739d456EA46` | [Arcscan](https://explorer.arc.io/address/0x7584fD830AdA73DAf6169a2F72dc8739d456EA46) | Native Arc liquidity pair |
+| **`USDC / cirBTC` Pool** | `0x53cE874C277fEAfE7c0BC73078305323Cf750d32` | [Arcscan](https://explorer.arc.io/address/0x53cE874C277fEAfE7c0BC73078305323Cf750d32) | Native Arc liquidity pair |
+| **`EURC / cirBTC` Pool** | `0xE53cF5A23251934024D3e0aa26e8ec211bE9D3e2` | [Arcscan](https://explorer.arc.io/address/0xE53cF5A23251934024D3e0aa26e8ec211bE9D3e2) | Native Arc liquidity pair |
+
+---
+
 ## Key Features
 
 - **Multi-Route DEX Aggregation**  
-  Aggregates and compares real-time liquidity across top DEXs and routing engines on Arc:
-  - **Uniswap V4** (via Universal Router & `UniswapV4Adapter`)
-  - **KyberSwap** (MetaAggregationRouterV2 via `KyberSwapAdapter`)
-  - **DZap Aggregator** (via `DZapAdapter`)
-  - **LI.FI / XyloNet** (Diamond routing via `LiFiAdapter`)
-  - **Aero Slipstream** (via `AeroAdapter`)
-  - **De1 Exchange** (V4 routing via `De1Adapter`)
-  - **UnitFlow** (via `UnitFlowAdapter`)
-  - **Synthra DEX**
-  - **Tower AMM** (Native Uniswap V2-style liquidity pools)
+  Aggregates and compares real-time liquidity across top DEXs and routing engines on Arc (Uniswap V4, KyberSwap, DZap, LI.FI, Aero, De1, UnitFlow, Synthra, and native Tower AMM).
 
 - **Cross-Chain Stablecoin Bridge**  
   Zero-slippage cross-chain USDC transfers powered by **Circle Cross-Chain Transfer Protocol (CCTP)** via Arc AppKit and Circle Bridge Kit, connecting Arc with EVM chains and Solana.
@@ -41,8 +47,8 @@ The platform also integrates cross-chain bridging via Circle CCTP, an intelligen
 - **Automated Recurring Orders (Dollar-Cost Averaging)**  
   On-chain recurring swap executor (`RecurringOrderExecutor.sol`) allowing users to automate recurring buy and sell schedules without giving up asset custody.
 
-- **Developer & Self-Custody Wallet APIs**  
-  High-throughput, clean REST API endpoints (`/api/public/swap/quote`, `/api/public/swap/build-tx`, `/api/public/tokens`) designed for wallets, institutional frontends, and bot integrators, complete with OpenAPI 1.1 specifications.
+- **Partner & Wallet Integration APIs**  
+  High-throughput REST API endpoints (`/api/public/swap/quote`, `/api/public/swap/build-tx`, `/api/public/tokens`) enabling self-custody wallets, institutional partners, and ecosystem applications to route trades through Tower Exchange with OpenAPI 1.1 specifications.
 
 - **Multi-Wallet & Multi-Ecosystem Connectivity**  
   Unified wallet connection supporting Ethereum/EVM providers (RainbowKit, Wagmi, Dynamic Labs) and Solana wallets (`@solana/wallet-adapter`).
