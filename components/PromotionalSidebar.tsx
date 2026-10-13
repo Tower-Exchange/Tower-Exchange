@@ -48,17 +48,17 @@ export default function PromotionalSidebar() {
     //     setTimeout(dispatch, 50);
     //   }
     // },
-    {
-      id: "dev-page",
-      heroImage: "/assets/dev-page.svg",
-      imageWidthClass: "w-[125px]",
-      title: "Build with Tower Console",
-      description: "You can now integrate Tower’s routing infrastructure directly into your apps and build.",
-      ctaText: "Get Started",
-      action: () => {
-        window.open("https://devs.tower.exchange", "_blank", "noopener,noreferrer");
-      }
-    },
+    // {
+    //   id: "dev-page",
+    //   heroImage: "/assets/dev-page.svg",
+    //   imageWidthClass: "w-[125px]",
+    //   title: "Build with Tower Console",
+    //   description: "You can now integrate Tower’s routing infrastructure directly into your apps and build.",
+    //   ctaText: "Get Started",
+    //   action: () => {
+    //     window.open("https://devs.tower.exchange", "_blank", "noopener,noreferrer");
+    //   }
+    // },
     // {
     //   id: "bridge-solana",
     //   heroImage: "/assets/promotional-card-bridge.svg",
@@ -70,19 +70,41 @@ export default function PromotionalSidebar() {
     //     router.push("/bridge?fromChain=arc-testnet&fromToken=USDC&toChain=solana&toToken=USDC");
     //   }
     // },
+    // {
+    //   id: "cirbtc-trade",
+    //   heroImage: "/assets/TradecircBTC.svg",
+    //   imageWidthClass: "w-[100px]",
+    //   title: "Trade $cirBTC on Tower",
+    //   description: "cirBTC, Circle's wrapped Bitcoin backed 1:1 by real BTC, is now available for trading on Tower.",
+    //   ctaText: "Trade cirBTC",
+    //   action: () => {
+    //     router.push("/?select=cirBTC");
+    //     setTimeout(() => {
+    //       const event = new CustomEvent("select-sell-token", { detail: { symbol: "cirBTC" } });
+    //       window.dispatchEvent(event);
+    //     }, 50);
+    //   }
+    // },
     {
-      id: "cirbtc-trade",
-      heroImage: "/assets/TradecircBTC.svg",
-      imageWidthClass: "w-[100px]",
-      title: "Trade $cirBTC on Tower",
-      description: "cirBTC, Circle's wrapped Bitcoin backed 1:1 by real BTC, is now available for trading on Tower.",
-      ctaText: "Trade cirBTC",
+      id: "conquest-trade",
+      heroImage: "/assets/conquests.svg",
+      imageWidthClass: "w-[125px]",
+      title: "Introducing Conquests",
+      description: "Earn Republic Valor Points for participating in the campaign and completing eligible tasks.",
+      ctaText: "Earn Points",
       action: () => {
-        router.push("/?select=cirBTC");
-        setTimeout(() => {
-          const event = new CustomEvent("select-sell-token", { detail: { symbol: "cirBTC" } });
-          window.dispatchEvent(event);
-        }, 50);
+        window.open("https://republic.legion.cc/conquest/1467135771780710474-tower-exchange-pioneers", "_blank", "noopener,noreferrer");
+      }
+    },
+    {
+      id: "arctober-badges",
+      heroImage: "/assets/arctober.svg",
+      imageWidthClass: "w-[125px]",
+      title: "Introducing Arctober Badges",
+      description: "To celebrate the Arc mainnet era we are introducing two new badges. The requirements and perks has been revealed.",
+      ctaText: "Claim your Badges",
+      action: () => {
+        router.push("/profile?tab=badges");
       }
     }
     // {
