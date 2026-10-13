@@ -36,7 +36,7 @@ type Badge = {
   isInteractive: boolean;
   isMystery?: boolean;
   requirements?: string[];
-  perks?: string;
+  perks?: React.ReactNode;
   pioneerStatus?: PioneerBadgeStatus;
 };
 
@@ -92,7 +92,19 @@ const postArctoberBadges: Badge[] = [
       "Complete at least 10 swap transactions",
       "Accumulate at least $1,000 in total swap volume",
     ],
-    perks: "To be revealed soon",
+    perks: (
+      <>
+        75 Republic Valor Points 
+        <a
+          href="https://republic.legion.cc/docs/vp-history"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#78AFFF] underline underline-offset-2 hover:opacity-80 transition-opacity ml-1"
+        >
+           Learn more
+        </a>
+      </>
+    ),
   },
   {
     id: "bridge-pioneer",
@@ -106,7 +118,19 @@ const postArctoberBadges: Badge[] = [
       "Complete at least 10 bridge transactions",
       "Accumulate at least $1,000 in total bridge volume",
     ],
-    perks: "To be revealed soon",
+    perks: (
+      <>
+        75 Republic Valor Points 
+        <a
+          href="https://republic.legion.cc/docs/vp-history"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[#78AFFF] underline underline-offset-2 hover:opacity-80 transition-opacity ml-1"
+        >
+           Learn more
+        </a>
+      </>
+    ),
   },
 ];
 
@@ -130,6 +154,7 @@ const BadgeDetailsModal = ({
   isCheckingEligibility = false,
   isClaiming = false,
   claimError = null,
+  isWalletConnected = false,
 }: {
   badge: Badge | null;
   onClose: () => void;
@@ -138,14 +163,26 @@ const BadgeDetailsModal = ({
   isCheckingEligibility?: boolean;
   isClaiming?: boolean;
   claimError?: string | null;
+  isWalletConnected?: boolean;
 }) => {
-  const [activeTab, setActiveTab] = useState<"requirements" | "perks">("requirements");
+  const [userSelectedTab, setUserSelectedTab] = useState<{
+    badgeId: string | null;
+    tab: "requirements" | "perks";
+  }>({ badgeId: null, tab: "requirements" });
 
-  useEffect(() => {
-    if (badge) {
-      setActiveTab(badge.requirements && badge.requirements.length > 0 ? "requirements" : "perks");
-    }
-  }, [badge]);
+  const defaultTab =
+    badge?.requirements && badge.requirements.length > 0
+      ? "requirements"
+      : "perks";
+
+  const activeTab =
+    userSelectedTab.badgeId === badge?.id
+      ? userSelectedTab.tab
+      : defaultTab;
+
+  const setActiveTab = (tab: "requirements" | "perks") => {
+    setUserSelectedTab({ badgeId: badge?.id ?? null, tab });
+  };
 
   // Always show the brown (claimed) badge image for squire badge in the modal if claimed
   const badgeImage =
@@ -161,20 +198,22 @@ const BadgeDetailsModal = ({
             badge.id === "swap-pioneer" ? "swap" : "bridge"
           } transactions`,
           isComplete:
+            isWalletConnected &&
             badge.pioneerStatus.transactionCount >=
-            badge.pioneerStatus.minimumTransactionCount,
+              badge.pioneerStatus.minimumTransactionCount,
         },
         {
           label: `${formatUsd(badge.pioneerStatus.volumeUsd)} / ${formatUsd(
             badge.pioneerStatus.minimumVolumeUsd,
           )} in total ${badge.id === "swap-pioneer" ? "swap" : "bridge"} volume`,
           isComplete:
+            isWalletConnected &&
             badge.pioneerStatus.volumeUsd >= badge.pioneerStatus.minimumVolumeUsd,
         },
       ]
     : (badge?.requirements ?? []).map((label) => ({
         label,
-        isComplete: true,
+        isComplete: isWalletConnected && Boolean(badge?.isClaimed),
       }));
   const hasRequirements = requirements.length > 0;
   const isPioneerBadge = isPioneerBadgeId(badge?.id ?? "");
@@ -305,7 +344,7 @@ const BadgeDetailsModal = ({
                           <div
                             className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                               requirement.isComplete
-                                ? "bg-emerald-500/20 text-emerald-400"
+                                ? "bg-[#7bb8ff]/15 text-[#000]"
                                 : "bg-white/10 text-muted-foreground"
                             }`}
                           >
@@ -1022,6 +1061,7 @@ const Badges = ({
         isCheckingEligibility={isCheckingPioneerBadges}
         isClaiming={isClaimingPioneerBadge}
         claimError={pioneerBadgeError}
+        isWalletConnected={isWalletConnected}
       />
       <ClaimingBadgeModal isOpen={isClaimingSquireBadge} />
       <BadgeCongratulationsModal
