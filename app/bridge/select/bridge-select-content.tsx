@@ -14,6 +14,11 @@ import {
   remapChainForNetwork,
 } from "@/lib/bridgeNetworks";
 import { getBridgeSelectChains } from "@/lib/bridgeChainUi";
+import {
+  isBridgeChainEnabled,
+  isEvmBridgeEnabled,
+  isSolanaBridgeEnabled,
+} from "@/lib/bridgeEnabled";
 import { useTowerNetworkMode } from "@/lib/hooks/useTowerNetworkMode";
 
 type Chain = {
@@ -28,6 +33,25 @@ const getInitialNetworkMode = (): BridgeNetworkMode =>
   readStoredBridgeNetworkMode();
 
 export default function BridgeSelectContent() {
+  if (!isEvmBridgeEnabled() && !isSolanaBridgeEnabled()) {
+    return (
+      <main className="flex min-h-screen items-center justify-center px-4 text-center">
+        <div>
+          <h1 className="text-lg font-semibold text-foreground">
+            Bridging is temporarily unavailable
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            EVM and Solana bridges are currently disabled.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  return <EnabledBridgeSelectContent />;
+}
+
+function EnabledBridgeSelectContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const side = searchParams.get("side") === "to" ? "to" : "from";
@@ -57,10 +81,13 @@ export default function BridgeSelectContent() {
     const currentChainId = searchParams.get(`${side}Chain`);
     const mode = getInitialNetworkMode();
     const remapped = remapChainForNetwork(currentChainId, mode);
-    if (remapped && remapped !== "all") {
+    if (remapped && remapped !== "all" && isBridgeChainEnabled(remapped)) {
       return remapped;
     }
-    return DEFAULT_BRIDGE_CHAIN[mode];
+    return (
+      getBridgeSelectChains(mode).find((chain) => chain.id !== "all")?.id ??
+      DEFAULT_BRIDGE_CHAIN[mode]
+    );
   });
   const [isChainModalOpen, setIsChainModalOpen] = useState(false);
 
@@ -70,12 +97,18 @@ export default function BridgeSelectContent() {
     }
 
     setLocalNetworkMode(storedNetworkMode);
-    setSelectedChainId((previous) =>
-      previous === "all"
-        ? previous
-        : remapChainForNetwork(previous, storedNetworkMode) ||
-          DEFAULT_BRIDGE_CHAIN[storedNetworkMode],
-    );
+    setSelectedChainId((previous) => {
+      if (previous === "all") {
+        return previous;
+      }
+
+      const remapped = remapChainForNetwork(previous, storedNetworkMode);
+      return remapped && isBridgeChainEnabled(remapped)
+        ? remapped
+        : getBridgeSelectChains(storedNetworkMode).find(
+            (chain) => chain.id !== "all",
+          )?.id ?? DEFAULT_BRIDGE_CHAIN[storedNetworkMode];
+    });
   }, [isNetworkModeReady, networkMode, storedNetworkMode]);
 
   // Fetch supported tokens for the selected chain
@@ -90,11 +123,15 @@ export default function BridgeSelectContent() {
             supportedTokens.map((token) => ({
               ...token,
               chains: token.chains.filter(
-                (chainId) => getBridgeNetworkMode(chainId) === networkMode,
+                (chainId) =>
+                  getBridgeNetworkMode(chainId) === networkMode &&
+                  isBridgeChainEnabled(chainId),
               ),
               chainAddresses: Object.fromEntries(
                 Object.entries(token.chainAddresses).filter(
-                  ([chainId]) => getBridgeNetworkMode(chainId) === networkMode,
+                  ([chainId]) =>
+                    getBridgeNetworkMode(chainId) === networkMode &&
+                    isBridgeChainEnabled(chainId),
                 ),
               ),
             })),
@@ -149,7 +186,8 @@ export default function BridgeSelectContent() {
   }, [chainSearch, chains]);
 
   const selectedChain = useMemo(() => {
-    return chains.find((chain) => chain.id === selectedChainId) ?? chains[1];
+    return chains.find((chain) => chain.id === selectedChainId) ??
+      chains[1];
   }, [chains, selectedChainId]);
 
   const filteredTokens = useMemo(() => {
@@ -577,4 +615,3 @@ export default function BridgeSelectContent() {
     </main>
   );
 }
-

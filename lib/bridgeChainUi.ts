@@ -18,6 +18,7 @@ import {
   MAINNET_BRIDGE_CHAIN_IDS,
   TESTNET_BRIDGE_CHAIN_IDS,
 } from "@/lib/bridgeNetworks";
+import { isBridgeChainEnabled } from "@/lib/bridgeEnabled";
 
 export type BridgeUiChain = {
   id: string;
@@ -201,10 +202,15 @@ export const getBridgeUiChains = (mode: BridgeNetworkMode) => {
   const order = CHAIN_ORDER[mode];
   return order
     .map((id) => BRIDGE_UI_CHAINS.find((chain) => chain.id === id))
-    .filter((chain): chain is BridgeUiChain => Boolean(chain));
+    .filter(
+      (chain): chain is BridgeUiChain =>
+        chain !== undefined && isBridgeChainEnabled(chain.id),
+    );
 };
 
-export const getBridgeSelectChains = (mode: BridgeNetworkMode) => [
-  { ...ALL_CHAINS_OPTION, mode },
-  ...getBridgeUiChains(mode),
-];
+export const getBridgeSelectChains = (mode: BridgeNetworkMode) => {
+  const chains = getBridgeUiChains(mode);
+  return chains.length
+    ? [{ ...ALL_CHAINS_OPTION, mode }, ...chains]
+    : [];
+};

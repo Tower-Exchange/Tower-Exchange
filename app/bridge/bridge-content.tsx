@@ -27,11 +27,18 @@ import {
   DEFAULT_BRIDGE_CHAIN,
   getBridgeTokenAddress,
   getBridgeTransactionUrl,
+  getBridgeNetworkMode,
   isSolanaBridgeChain,
   remapChainForNetwork,
 } from "@/lib/bridgeNetworks";
 import { useTowerNetworkMode } from "@/lib/hooks/useTowerNetworkMode";
 import { BRIDGE_UI_CHAINS } from "@/lib/bridgeChainUi";
+import {
+  isBridgeChainEnabled,
+  isBridgeRouteEnabled,
+  isEvmBridgeEnabled,
+  isSolanaBridgeEnabled,
+} from "@/lib/bridgeEnabled";
 import { registerBridgeActivity, registerBridgeFee } from "@/lib/supabase";
 import { BridgeErrorModal } from "@/components/BridgeErrorModal";
 import ActivityTabModal, {
@@ -176,9 +183,9 @@ const BRIDGE_TOKENS: BridgeToken[] = [
   },
 ];
 
-const BRIDGE_CHAINS: BridgeChain[] = BRIDGE_UI_CHAINS.map(
-  ({ id, name, logo }) => ({ id, name, logo }),
-);
+const BRIDGE_CHAINS: BridgeChain[] = BRIDGE_UI_CHAINS.filter(({ id }) =>
+  isBridgeChainEnabled(id),
+).map(({ id, name, logo }) => ({ id, name, logo }));
 
 const resolveBridgeToken = (
   chainId: string,
@@ -199,6 +206,27 @@ const resolveBridgeToken = (
 };
 
 export default function BridgePageContent({
+  onNavigateToSwap,
+}: {
+  onNavigateToSwap?: () => void;
+}) {
+  if (!isEvmBridgeEnabled() && !isSolanaBridgeEnabled()) {
+    return (
+      <div className="rounded-2xl border border-border/70 bg-[#101113] p-6 text-center">
+        <h1 className="text-lg font-semibold text-foreground">
+          Bridging is temporarily unavailable
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          EVM and Solana bridges are currently disabled.
+        </p>
+      </div>
+    );
+  }
+
+  return <EnabledBridgePageContent onNavigateToSwap={onNavigateToSwap} />;
+}
+
+function EnabledBridgePageContent({
   onNavigateToSwap,
 }: {
   onNavigateToSwap?: () => void;
@@ -364,8 +392,12 @@ export default function BridgePageContent({
     setFromChainId((previous) => {
       const source =
         fromChainParam || previous || DEFAULT_BRIDGE_CHAIN[networkMode];
+      const remapped = remapChainForNetwork(source, networkMode);
       return (
-        remapChainForNetwork(source, networkMode) ||
+        (remapped && isBridgeChainEnabled(remapped) ? remapped : null) ||
+        BRIDGE_CHAINS.find((chain) =>
+          getBridgeNetworkMode(chain.id) === networkMode,
+        )?.id ||
         DEFAULT_BRIDGE_CHAIN[networkMode]
       );
     });
@@ -377,13 +409,29 @@ export default function BridgePageContent({
       }
 
       const remapped = remapChainForNetwork(source, networkMode);
-      return remapped && remapped !== "all" ? remapped : previous;
+      return remapped && remapped !== "all" && isBridgeChainEnabled(remapped)
+        ? remapped
+        : previous;
     });
 
+    const resolvedFromChainCandidate =
+      remapChainForNetwork(fromChainParam, networkMode);
     const resolvedFromChain =
-      remapChainForNetwork(fromChainParam, networkMode) ||
-      DEFAULT_BRIDGE_CHAIN[networkMode];
-    const resolvedToChain = remapChainForNetwork(toChainParam, networkMode);
+      resolvedFromChainCandidate &&
+      isBridgeChainEnabled(resolvedFromChainCandidate)
+        ? resolvedFromChainCandidate
+        : BRIDGE_CHAINS.find(
+            (chain) => getBridgeNetworkMode(chain.id) === networkMode,
+          )?.id || DEFAULT_BRIDGE_CHAIN[networkMode];
+    const resolvedToChainCandidate = remapChainForNetwork(
+      toChainParam,
+      networkMode,
+    );
+    const resolvedToChain =
+      resolvedToChainCandidate &&
+      isBridgeChainEnabled(resolvedToChainCandidate)
+        ? resolvedToChainCandidate
+        : null;
 
     setFromToken((previous) =>
       resolveBridgeToken(resolvedFromChain, fromTokenParam || previous?.symbol),
@@ -788,6 +836,13 @@ export default function BridgePageContent({
   }, [fromAmount, fromChainId, fromToken?.logo, fromToken?.symbol, toAmount, toChainId]);
 
   const handleBridge = useCallback(async () => {
+    if (!isBridgeRouteEnabled(fromChainId, toChainId)) {
+      bridgeHook.reportError(
+        "Bridging is disabled for one or both selected networks.",
+      );
+      return;
+    }
+
     if (!user && !isSolanaBridgeChain(fromChainId)) {
       alert("Please connect your wallet first");
       return;
@@ -1934,4 +1989,3 @@ export default function BridgePageContent({
     </>
   );
 }
-

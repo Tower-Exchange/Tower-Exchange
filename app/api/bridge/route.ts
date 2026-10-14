@@ -42,6 +42,7 @@ import {
   getBridgeNetworkMode,
 } from "@/lib/bridgeNetworks";
 import { isPositiveDecimalAmount } from "@/lib/positiveAmount";
+import { isEvmBridgeEnabled } from "@/lib/bridgeEnabled";
 
 const getSupportedTokens = () => [
   {
@@ -253,6 +254,13 @@ async function createServerBridgeAdapter(): Promise<any> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
+    if (!isEvmBridgeEnabled()) {
+      return NextResponse.json(
+        { success: false, error: "EVM bridging is temporarily disabled." },
+        { status: 503 },
+      );
+    }
+
     const body = (await request.json()) as BridgeRequestBody;
 
     // Validate request

@@ -22,6 +22,7 @@ import {
   isValidAddress,
 } from "@/lib/bridgeService";
 import { isSolanaBridgeChain } from "@/lib/bridgeNetworks";
+import { isBridgeRouteEnabled } from "@/lib/bridgeEnabled";
 
 export interface BridgeState {
   isLoading: boolean;
@@ -249,6 +250,16 @@ export function useBridge(): UseBridgeResult {
    */
   const executeBridge = useCallback(
     async (request: BridgeRequest): Promise<BridgeResponse> => {
+      if (!isBridgeRouteEnabled(request.fromChain, request.toChain)) {
+        const error = "Bridging is disabled for one or both selected networks.";
+        setState((prev) => ({
+          ...prev,
+          isBridging: false,
+          error,
+        }));
+        return { success: false, error };
+      }
+
       // Validate inputs first
       const validationError = validateBridgeInputs(
         request.fromChain,
@@ -437,4 +448,3 @@ export function useBridge(): UseBridgeResult {
 }
 
 export default useBridge;
-

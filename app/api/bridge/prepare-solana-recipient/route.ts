@@ -16,6 +16,7 @@ import {
   normalizeSolanaAddress,
 } from "@/lib/solanaUsdcAccounts";
 import { isSolanaMainnetChain } from "@/lib/bridgeNetworks";
+import { isSolanaBridgeEnabled } from "@/lib/bridgeEnabled";
 
 export const dynamic = "force-dynamic";
 
@@ -253,6 +254,13 @@ const ensureRecipientUsdcAccount = async (
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isSolanaBridgeEnabled()) {
+      return NextResponse.json(
+        { success: false, error: "Solana bridging is temporarily disabled." },
+        { status: 503 },
+      );
+    }
+
     const { walletAddress, chainId: requestedChainId } = (await request
       .json()
       .catch(() => ({}))) as {
