@@ -126,12 +126,11 @@ export async function POST(request: NextRequest) {
         body.transaction_hash.trim()
           ? body.transaction_hash.trim().slice(0, 200)
           : null,
-      // Server clock only: a client-supplied timestamp could backdate activity
-      // into a rewards campaign window.
+      // server time, so a client can't backdate activity
       timestamp: new Date().toISOString(),
     };
 
-    // One log per (wallet, type, tx hash): replays must not inflate volume.
+    // same wallet/type/tx hash is only logged once
     if (row.transaction_hash) {
       const { data: existing, error: existingError } = await supabaseAdmin
         .from("activities")
