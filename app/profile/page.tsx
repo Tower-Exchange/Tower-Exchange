@@ -57,7 +57,6 @@ const ProfileContent = () => {
   const [squireBadgeStatus, setSquireBadgeStatus] =
     useState<SquireBadgeStatus | null>(null);
   const [copied, setCopied] = useState(false);
-  const [countdownOpenKey, setCountdownOpenKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestedTab = searchParams.get("tab");
   const requestedBadgeId = searchParams.get("badge");
@@ -158,10 +157,6 @@ const ProfileContent = () => {
 
   const handleTabChange = (tab: ProfileTab) => {
     setActiveTab(tab);
-
-    if (tab === "badges") {
-      setCountdownOpenKey((key) => key + 1);
-    }
 
     const nextSearchParams = new URLSearchParams(searchParams.toString());
     nextSearchParams.set("tab", tab);
@@ -387,7 +382,6 @@ const ProfileContent = () => {
             <Badges
               isWalletConnected={authenticated}
               highlightedBadgeId={activeTab === "badges" ? requestedBadgeId : null}
-              countdownOpenKey={countdownOpenKey}
               onSquireBadgeStatusChange={setSquireBadgeStatus}
               walletAddress={user?.wallet?.address || null}
             />

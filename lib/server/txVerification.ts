@@ -32,6 +32,7 @@ import {
   ARC_TESTNET_CONFIG,
 } from "@/lib/arcNetwork";
 import { getArcMainnetRpcUrls, getArcRpcUrls } from "@/lib/arcRpc";
+import { BRIDGE_EURC_ADDRESSES, BRIDGE_USDC_ADDRESSES } from "@/lib/bridgeNetworks";
 
 /**
  * Server-side proof that a logged activity really happened on-chain.
@@ -104,14 +105,27 @@ export function modeFromNetwork(network: string | null | undefined): NetworkMode
  * resolves to Arc of the campaign's mode. Activity on the other mode's chains
  * never counts.
  */
+export function resolveChainEntry(
+  networkName: string | null | undefined,
+  mode: NetworkMode,
+): { key: string; chain: Chain } | null {
+  // Bridge activity stores display names ("Base Sepolia"); chain ids use hyphens.
+  const name = (networkName ?? "").trim().toLowerCase().replace(/\s+/g, "-");
+  if (!name) return null;
+  if (name === "arc") {
+    return mode === "mainnet"
+      ? { key: "arc", chain: arcMainnet }
+      : { key: "arc-testnet", chain: arcTestnet };
+  }
+  const chain = (mode === "mainnet" ? MAINNET_CHAINS : TESTNET_CHAINS)[name];
+  return chain ? { key: name, chain } : null;
+}
+
 export function resolveChain(
   networkName: string | null | undefined,
   mode: NetworkMode,
 ): Chain | null {
-  const name = (networkName ?? "").trim().toLowerCase();
-  if (!name) return null;
-  if (name === "arc") return mode === "mainnet" ? arcMainnet : arcTestnet;
-  return (mode === "mainnet" ? MAINNET_CHAINS : TESTNET_CHAINS)[name] ?? null;
+  return resolveChainEntry(networkName, mode)?.chain ?? null;
 }
 
 const clients = new Map<number, PublicClient>();
@@ -227,4 +241,130 @@ export async function verifyActivityTransaction(params: {
   }
 
   return { outcome: "verified", chainId: chain.id, blockTime };
+}
+
+const TRANSFER_TOPIC =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const ZERO_TOPIC = `0x${"0".repeat(64)}`;
+
+/**
+ * Prove a bridge from its DESTINATION transaction.
+ *
+ * Tower logs a bridge's mint hash (the destination-chain transaction), and that
+ * transaction is sent by Circle's relayer, not by the user, so the "sent by the
+ * wallet" test cannot apply. Instead we require a real mint: a USDC/EURC
+ * Transfer from the zero address to this wallet, emitted by Circle's token
+ * contract on that chain. Only a genuine CCTP mint can produce that, so a user
+ * can only claim a mint into their own wallet.
+ */
+export async function verifyBridgeMint(params: {
+  hash: string;
+  wallet: string;
+  networkName: string | null | undefined;
+  mode: NetworkMode;
+  ageMs: number;
+}): Promise<TxCheck> {
+  const hash = normalizeTxHash(params.hash);
+  if (!hash) return { outcome: "rejected", reason: "malformed transaction hash" };
+
+  const entry = resolveChainEntry(params.networkName, params.mode);
+  if (!entry) {
+    return {
+      outcome: "unsupported",
+      reason: `network '${params.networkName ?? ""}' is not verifiable for ${params.mode}`,
+    };
+  }
+
+  const client = getClient(entry.chain);
+
+  let receipt;
+  try {
+    receipt = await client.getTransactionReceipt({ hash });
+  } catch (error) {
+    const notFound =
+      error instanceof Error && error.name === "TransactionReceiptNotFoundError";
+    if (notFound) {
+      return params.ageMs > 15 * 60_000
+        ? { outcome: "rejected", reason: "transaction not found on-chain" }
+        : { outcome: "unavailable", reason: "transaction not indexed yet" };
+    }
+    return {
+      outcome: "unavailable",
+      reason: error instanceof Error ? error.message : "RPC error",
+    };
+  }
+
+  if (receipt.status !== "success") {
+    return { outcome: "rejected", reason: "transaction reverted" };
+  }
+
+  const tokens = new Set(
+    [BRIDGE_USDC_ADDRESSES[entry.key], BRIDGE_EURC_ADDRESSES[entry.key]]
+      .filter((address): address is string => Boolean(address))
+      .map((address) => address.toLowerCase()),
+  );
+  const walletTopic = `0x${params.wallet.slice(2).toLowerCase().padStart(64, "0")}`;
+
+  const minted = receipt.logs.some(
+    (log) =>
+      tokens.has(log.address.toLowerCase()) &&
+      log.topics[0]?.toLowerCase() === TRANSFER_TOPIC &&
+      log.topics[1]?.toLowerCase() === ZERO_TOPIC &&
+      log.topics[2]?.toLowerCase() === walletTopic,
+  );
+  if (!minted) {
+    return { outcome: "rejected", reason: "no bridge mint to this wallet in this transaction" };
+  }
+
+  let blockTime = new Date().toISOString();
+  try {
+    const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+    blockTime = new Date(Number(block.timestamp) * 1000).toISOString();
+  } catch {
+    // Only for a precise occurredAt; the mint itself is proven.
+  }
+
+  return { outcome: "verified", chainId: entry.chain.id, blockTime };
+}
+
+/**
+ * Bridge proof from either side: the user's burn on the source chain (sent by
+ * the wallet) or the mint on the destination chain (received by the wallet).
+ * Existing rows hold a mix, depending on whether the bridge had finished when
+ * it was logged.
+ */
+export async function verifyBridgeActivity(params: {
+  hash: string;
+  wallet: string;
+  sourceNetwork: string | null | undefined;
+  destinationNetwork: string | null | undefined;
+  mode: NetworkMode;
+  ageMs: number;
+}): Promise<TxCheck> {
+  const source = await verifyActivityTransaction({
+    hash: params.hash,
+    wallet: params.wallet,
+    networkName: params.sourceNetwork,
+    mode: params.mode,
+    enforceTarget: false,
+    ageMs: params.ageMs,
+  });
+  if (source.outcome === "verified") return source;
+
+  const destination = await verifyBridgeMint({
+    hash: params.hash,
+    wallet: params.wallet,
+    networkName: params.destinationNetwork,
+    mode: params.mode,
+    ageMs: params.ageMs,
+  });
+  if (destination.outcome === "verified") return destination;
+
+  // Could not prove it either way: only say "rejected" when both sides are final.
+  if (source.outcome === "unavailable") return source;
+  if (destination.outcome === "unavailable") return destination;
+  if (source.outcome === "unsupported" && destination.outcome === "unsupported") {
+    return source;
+  }
+  return destination.outcome === "rejected" ? destination : source;
 }

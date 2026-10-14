@@ -56,3 +56,9 @@ TowerExchange_webapp-Audit_report.md
 TowerExchange AUDIT.md
 arc-mainnet-addresses.md
 frontend-502-outage.md
+
+/.claude
+
+/.vscode
+docs/legion-integration.md
+scripts/legion-verify-smoke.mjs
