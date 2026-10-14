@@ -32,9 +32,7 @@ type ActionContext = {
   wallet: string;
   key: string;
   mode: NetworkMode;
-  /** qualification.since (ISO): ignore events before this instant. */
   since: string | null;
-  /** qualification.minUsd: minimum USD size of a single swap/bridge. */
   minUsd: number | null;
   qualification: Record<string, unknown>;
   deadline: number;
@@ -44,7 +42,7 @@ type Handler = (ctx: ActionContext) => Promise<Completed | null>;
 
 class BadRequestError extends Error {}
 
-/** Work is fine but not provable yet (chain/indexer behind) -> HTTP 202. */
+// thrown when a tx can't be confirmed yet, answered with a 202
 class PendingError extends Error {
   constructor(readonly retryAfterSeconds: number) {
     super("pending");
@@ -135,20 +133,10 @@ function assertTime(ctx: ActionContext) {
 const ACTIVITY_COLUMNS =
   "id, type, timestamp, created_at, amount_usd, transaction_hash, source_network_name, destination_network_name, onchain_status, onchain_chain_id, onchain_block_time, onchain_checked_at";
 
-/**
- * Bridge "rejected" results cached before this instant were produced by the old
- * rule (hash must be sent by the wallet on the source chain), which wrongly
- * rejected real bridges whose logged hash is the destination mint. They are
- * re-checked once under the current rules.
- */
-const BRIDGE_RULES_EFFECTIVE_AT = Date.parse("2026-10-11T00:00:00.000Z");
+// a cached bridge rejection expires so a wrong one can't stick
+const BRIDGE_REJECTION_TTL_MS = 6 * 60 * 60 * 1000;
 
-/**
- * Hashed activity rows for the wallet, oldest first. "Pending" is included
- * because a bridge logged while still settling is never updated afterwards; the
- * on-chain proof (not the status column) decides whether it counts. "Failed"
- * rows are excluded.
- */
+// pending rows are included: bridges logged mid-settlement never get updated
 function activityQuery(ctx: ActionContext, typePattern: string | null) {
   let query = supabaseAdmin
     .from("activities")
@@ -177,11 +165,7 @@ function rowChains(ctx: ActionContext, row: ActivityRow) {
   };
 }
 
-/**
- * Decide, for each row, whether it is a proven on-chain event for this wallet.
- * Results (verified / rejected) are cached on the row so each hash is looked up
- * once; transient failures stay "unavailable" and surface as HTTP 202.
- */
+// verified/rejected is cached on the row; unavailable is not
 async function resolveRows(
   ctx: ActionContext,
   rows: ActivityRow[],
@@ -189,7 +173,7 @@ async function resolveRows(
 ): Promise<ResolvedRow[]> {
   const resolved: ResolvedRow[] = [];
 
-  /** Rows decidable without an RPC call: unusable ones and cached results. */
+  // rows we can settle without an rpc call
   const precheck = (row: ActivityRow): ResolvedRow | null => {
     const hash = normalizeTxHash(row.transaction_hash);
     const fallbackTime = rowTime(row);
@@ -200,7 +184,7 @@ async function resolveRows(
       return { row, hash, verdict: "skip", occurredAt: fallbackTime };
     }
 
-    // Cached result for one of this row's chains.
+    // cached verdict
     const chainIds = [chains.source?.id, chains.destination?.id];
     if (row.onchain_chain_id != null && chainIds.includes(row.onchain_chain_id)) {
       if (row.onchain_status === "verified") {
@@ -213,7 +197,7 @@ async function resolveRows(
       }
       const checkedAt = row.onchain_checked_at ? Date.parse(row.onchain_checked_at) : 0;
       const staleBridgeRejection =
-        chains.isBridge && !(checkedAt >= BRIDGE_RULES_EFFECTIVE_AT);
+        chains.isBridge && Date.now() - checkedAt > BRIDGE_REJECTION_TTL_MS;
       if (row.onchain_status === "rejected" && !staleBridgeRejection) {
         return { row, hash, verdict: "rejected", occurredAt: fallbackTime };
       }
@@ -224,8 +208,7 @@ async function resolveRows(
   const checkOne = async (row: ActivityRow): Promise<ResolvedRow> => {
     const hash = normalizeTxHash(row.transaction_hash) ?? "";
     const fallbackTime = rowTime(row);
-    // A bridge can be proven on its source chain (burn sent by the wallet) or on
-    // its destination chain (mint received by the wallet); a swap only on its chain.
+    // bridges can be proven on either chain, swaps only on the source chain
     const { isBridge, source: chain, destination: destinationChain } = rowChains(ctx, row);
 
     const createdAt = toIso(row.created_at) ?? fallbackTime;
@@ -304,9 +287,7 @@ async function resolveRows(
 }
 
 type Scope = {
-  /** SQL ilike pattern for activity type; null = swaps and bridges. */
   typePattern: string | null;
-  /** Used in assertionIds. */
   name: "swap" | "bridge" | "activity" | "volume";
 };
 
@@ -315,7 +296,6 @@ const BRIDGES: Scope = { typePattern: "%bridge%", name: "bridge" };
 const ANY_ACTIVITY: Scope = { typePattern: null, name: "activity" };
 const VOLUME: Scope = { typePattern: null, name: "volume" };
 
-/** Parse an optional qualification threshold; invalid values are a config error. */
 function readThreshold(
   value: unknown,
   name: string,
@@ -343,11 +323,7 @@ function readThreshold(
 
 type Hit = { hash: string; occurredAt: string };
 
-/**
- * Walk the wallet's proven events oldest-first (each tx hash once) until BOTH
- * thresholds hold: at least `count` events and at least `volumeUsd` of
- * cumulative amount_usd. Returns the event that satisfied them.
- */
+// walks proven events oldest first until both thresholds are met
 async function scanProvenEvents(
   ctx: ActionContext,
   scope: Scope,
@@ -387,20 +363,13 @@ async function scanProvenEvents(
     if (rows.length < PAGE_SIZE) break;
   }
 
-  // Something could not be proven yet (RPC/indexer behind): do not say "no".
+  // some rows aren't provable yet, so don't answer "no"
   if (sawUnavailable) throw new PendingError(30);
   return null;
 }
 
-/**
- * Swap / bridge / activity / volume actions. Optional qualification:
- *   minCount      minimum number of proven events (integer)
- *   minVolumeUsd  minimum cumulative USD of proven events
- *   minUsd        minimum USD size of each counted event
- *   since         ignore events before this ISO time
- * With no thresholds the action completes on the first proven event, and the
- * tx hash is the assertionId. tower_volume_<usd> carries the volume in the key.
- */
+// qualification: minCount, minVolumeUsd (cumulative), minUsd (per tx), since
+// with no thresholds the first proven event completes it and its hash is the assertionId
 function thresholdHandler(scope: Scope): Handler {
   return async (ctx) => {
     const keyVolume = VOLUME_KEY_PATTERN.exec(ctx.key);
@@ -425,7 +394,7 @@ function thresholdHandler(scope: Scope): Handler {
     const hit = await scanProvenEvents(ctx, scope, need);
     if (!hit) return null;
 
-    // assertionId must be identical on every re-check of the same requirement.
+    // same requirement must always give the same id
     let assertionId: string;
     if (scope === VOLUME && minCount == null) {
       assertionId = `tower_volume_${need.volumeUsd}_${ctx.wallet}`; // legacy shape
@@ -438,7 +407,7 @@ function thresholdHandler(scope: Scope): Handler {
   };
 }
 
-/** Badge is derived from activity, so it also needs a proven on-chain event. */
+// the badge is derived from activity, so it needs one proven swap or bridge too
 async function squireBadgeHandler(ctx: ActionContext): Promise<Completed | null> {
   const { data, error } = await withTimeout(
     supabaseAdmin
@@ -453,7 +422,6 @@ async function squireBadgeHandler(ctx: ActionContext): Promise<Completed | null>
   const row = data?.[0] as { claimed_at?: string | null } | undefined;
   if (!row) return null;
 
-  // One proven swap/bridge; ignore the quest own count/volume parameters.
   const proven = await scanProvenEvents(ctx, ANY_ACTIVITY, { count: 1, volumeUsd: 0 });
   if (!proven) return null;
 
@@ -463,7 +431,6 @@ async function squireBadgeHandler(ctx: ActionContext): Promise<Completed | null>
   };
 }
 
-/** Recurring order whose on-chain authorization tx is proven. */
 async function recurringOrderHandler(ctx: ActionContext): Promise<Completed | null> {
   let query = supabaseAdmin
     .from("recurring_orders")
@@ -508,7 +475,7 @@ async function recurringOrderHandler(ctx: ActionContext): Promise<Completed | nu
   return null;
 }
 
-/** Self-reported history (ai_db is client-writable): low trust, see docs. */
+// ai_db is client-writable, low trust
 async function aiChatHandler(ctx: ActionContext): Promise<Completed | null> {
   let query = supabaseAdmin
     .from("ai_db")
@@ -551,7 +518,6 @@ function resolveHandler(key: string): Handler | null {
 
 /* ------------------------------ routes ------------------------------ */
 
-/** Connectivity check for humans; reveals nothing secret. */
 export async function GET() {
   return json({
     service: "Tower Exchange - Legion Partner Verification API",
@@ -565,7 +531,7 @@ export async function POST(request: NextRequest) {
   const startedAt = Date.now();
 
   try {
-    // 1. Authentication — fail closed if the secret is not configured.
+    // fail closed when the secret isn't set
     const expectedSecret = process.env.LEGION_WEBHOOK_SECRET?.trim();
     if (!expectedSecret) {
       console.error("[legion] LEGION_WEBHOOK_SECRET is not configured");
@@ -576,15 +542,14 @@ export async function POST(request: NextRequest) {
       .get("authorization")
       ?.replace(/^Bearer\s+/i, "")
       .trim();
-    // LEGION_WEBHOOK_SECRET_PREVIOUS lets in-flight checks pass during rotation.
+    // old secret stays valid while rotating
     const previousSecret = process.env.LEGION_WEBHOOK_SECRET_PREVIOUS?.trim();
     const authorized =
       !!token &&
       (tokensMatch(token, expectedSecret) ||
         (!!previousSecret && tokensMatch(token, previousSecret)));
     if (!authorized) {
-      // Diagnostics only: lengths and short hash fingerprints, never the token.
-      // Compare "received" with the fingerprint of the token registered on Republic.
+      // lengths and short hashes only, never the token
       const fingerprint = (value?: string) =>
         value ? sha256(value).toString("hex").slice(0, 8) : "none";
       console.warn(
@@ -597,7 +562,6 @@ export async function POST(request: NextRequest) {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    // 2. Parse the documented payload.
     const body = (await request.json().catch(() => null)) as {
       action?: { key?: unknown; version?: unknown };
       subject?: { kind?: unknown; identifier?: unknown; network?: unknown };
@@ -631,8 +595,7 @@ export async function POST(request: NextRequest) {
       !Array.isArray(body.qualification)
         ? (body.qualification as Record<string, unknown>)
         : {};
-    // A bad cutoff/size must be a visible config error (400), never silently
-    // ignored: an ignored `since` would let pre-campaign activity count.
+    // reject bad values instead of ignoring them, a dropped `since` would count old activity
     const minUsd =
       qualification.minUsd === 0
         ? null // 0 simply means "no minimum"
@@ -652,7 +615,6 @@ export async function POST(request: NextRequest) {
     const network =
       typeof body.subject.network === "string" ? body.subject.network : null;
 
-    // 3. Check the wallet against our data and the chain, inside the 8s window.
     const ctx: ActionContext = {
       wallet,
       key,
@@ -698,7 +660,7 @@ export async function POST(request: NextRequest) {
       console.info(`[legion] requestId=${requestId} -> pending (${Date.now() - startedAt}ms)`);
       return json({ status: "pending", retryAfterSeconds: error.retryAfterSeconds }, 202);
     }
-    // 5xx => Republic shows "temporarily unavailable"; progress is untouched.
+    // 5xx so republic shows "unavailable" and leaves progress alone
     console.error(`[legion] verification failed (requestId=${requestId}):`, error);
     return json({ error: "Verification temporarily unavailable" }, 503);
   }
