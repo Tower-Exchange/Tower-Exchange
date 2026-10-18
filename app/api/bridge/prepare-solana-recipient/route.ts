@@ -129,11 +129,10 @@ const parseSponsorSecretKey = (rawValue: string) => {
   return Uint8Array.from(Buffer.from(trimmed, "base64"));
 };
 
-const getSponsorKeypair = () => {
-  const secretKey =
-    process.env.SOLANA_ATA_SPONSOR_SECRET_KEY ||
-    process.env.SOLANA_DEVNET_ATA_SPONSOR_SECRET_KEY ||
-    "";
+const getSponsorKeypair = (chainId: string) => {
+  const secretKey = isSolanaMainnetChain(chainId)
+    ? process.env.SOLANA_MAINNET_ATA_SPONSOR_SECRET_KEY || ""
+    : process.env.SOLANA_DEVNET_ATA_SPONSOR_SECRET_KEY || "";
 
   if (!secretKey.trim()) {
     return null;
@@ -187,14 +186,18 @@ const ensureRecipientUsdcAccount = async (
       ataAddress,
       created: false,
       sponsored: false,
+      sponsorAddress: null,
     };
   }
 
-  const sponsor = getSponsorKeypair();
+  const sponsor = getSponsorKeypair(chainId);
 
   if (!sponsor) {
+    const requiredSponsorVariable = isSolanaMainnetChain(chainId)
+      ? "SOLANA_MAINNET_ATA_SPONSOR_SECRET_KEY"
+      : "SOLANA_DEVNET_ATA_SPONSOR_SECRET_KEY";
     throw new Error(
-      "This Solana wallet is not ready to receive bridged USDC yet. Configure SOLANA_ATA_SPONSOR_SECRET_KEY so Tower can initialize the recipient USDC account automatically.",
+      `This Solana wallet is not ready to receive bridged USDC yet. Configure ${requiredSponsorVariable} with a funded keypair for this Solana network so Tower can initialize its USDC account automatically.`,
     );
   }
 
@@ -249,6 +252,7 @@ const ensureRecipientUsdcAccount = async (
     ataAddress,
     created: true,
     sponsored: true,
+    sponsorAddress: sponsor.publicKey.toBase58(),
   };
 };
 
@@ -295,6 +299,7 @@ export async function POST(request: NextRequest) {
       ataAddress: preparedRecipient.ataAddress,
       created: preparedRecipient.created,
       sponsored: preparedRecipient.sponsored,
+      sponsorAddress: preparedRecipient.sponsorAddress,
     });
   } catch (error) {
     const message =

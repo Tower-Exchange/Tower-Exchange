@@ -1,13 +1,13 @@
 {
-	"folders": [
-		{
-			"path": "../.."
-		},
-		{
-			"path": "../../../../../Desktop/Tower-Backend"
-		}
-	],
-	"settings": {
-		"git.ignoreLimitWarning": true
-	}
+  "folders": [
+    {
+      "path": "../..",
+    },
+    {
+      "path": "../../../Tower-Backend",
+    },
+  ],
+  "settings": {
+    "git.ignoreLimitWarning": true,
+  },
 }

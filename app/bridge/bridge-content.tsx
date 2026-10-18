@@ -22,7 +22,13 @@ import {
 import { useWalletClient } from "wagmi";
 import SettingsModal from "@/components/SettingsModal";
 import useBridge from "@/lib/hooks/useBridge";
-import { SUPPORTED_CHAINS, ensureWalletOnBridgeChain, isCircleBridgeRouteReady, isValidAddress, normalizeWalletAddress } from "@/lib/bridgeService";
+import {
+  SUPPORTED_CHAINS,
+  ensureWalletOnBridgeChain,
+  isCircleBridgeRouteReady,
+  isValidAddress,
+  normalizeWalletAddress,
+} from "@/lib/bridgeService";
 import {
   DEFAULT_BRIDGE_CHAIN,
   getBridgeTokenAddress,
@@ -250,7 +256,8 @@ function EnabledBridgePageContent({
   const [toToken, setToToken] = useState<BridgeToken | null>(null);
   const [fromChainId, setFromChainId] = useState<string | null>(null);
   const [toChainId, setToChainId] = useState<string | null>(null);
-  const { mode: networkMode, isReady: isNetworkModeReady } = useTowerNetworkMode();
+  const { mode: networkMode, isReady: isNetworkModeReady } =
+    useTowerNetworkMode();
   const walletBalanceRequestIdRef = useRef(0);
   const toChainBalanceRequestIdRef = useRef(0);
   const [slippageTolerance, setSlippageTolerance] = useState(0.5);
@@ -266,8 +273,9 @@ function EnabledBridgePageContent({
     useState<BridgeStepsPhase>("approve");
   const [bridgeStepsFailedPhase, setBridgeStepsFailedPhase] =
     useState<BridgeStepsStep>("approve");
-  const [bridgeStepsFailureMessage, setBridgeStepsFailureMessage] =
-    useState<string | null>(null);
+  const [bridgeStepsFailureMessage, setBridgeStepsFailureMessage] = useState<
+    string | null
+  >(null);
   const [bridgeStepsDetails, setBridgeStepsDetails] = useState({
     amount: "0.00",
     tokenSymbol: "USDC",
@@ -281,6 +289,10 @@ function EnabledBridgePageContent({
     number | null
   >(null);
   const [walletBalance, setWalletBalance] = useState("0.00");
+  const [walletBalanceStatus, setWalletBalanceStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [walletBalanceKey, setWalletBalanceKey] = useState<string | null>(null);
   const [toChainBalance, setToChainBalance] = useState("0.00");
   const [sourceGasBalance, setSourceGasBalance] = useState("0.00");
   const [destinationGasBalance, setDestinationGasBalance] = useState("0.00");
@@ -290,8 +302,7 @@ function EnabledBridgePageContent({
   const previousFromChainIdRef = useRef<string | null>(null);
   const previousToChainIdRef = useRef<string | null>(null);
   const previousBridgeStatusRef = useRef<string | undefined>(undefined);
-  const bridgeCompletionResetTimeoutRef =
-    useRef<number | null>(null);
+  const bridgeCompletionResetTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("bridgeRecentAddresses");
@@ -336,7 +347,9 @@ function EnabledBridgePageContent({
     localStorage.setItem("bridgeRecentAddresses", JSON.stringify(updated));
   };
 
-  const destinationChainType = isSolanaBridgeChain(toChainId) ? "solana" : "evm";
+  const destinationChainType = isSolanaBridgeChain(toChainId)
+    ? "solana"
+    : "evm";
   const canSaveReceivingAddress = isValidAddress(
     normalizeWalletAddress(receivingAddress),
     destinationChainType,
@@ -395,8 +408,8 @@ function EnabledBridgePageContent({
       const remapped = remapChainForNetwork(source, networkMode);
       return (
         (remapped && isBridgeChainEnabled(remapped) ? remapped : null) ||
-        BRIDGE_CHAINS.find((chain) =>
-          getBridgeNetworkMode(chain.id) === networkMode,
+        BRIDGE_CHAINS.find(
+          (chain) => getBridgeNetworkMode(chain.id) === networkMode,
         )?.id ||
         DEFAULT_BRIDGE_CHAIN[networkMode]
       );
@@ -414,8 +427,10 @@ function EnabledBridgePageContent({
         : previous;
     });
 
-    const resolvedFromChainCandidate =
-      remapChainForNetwork(fromChainParam, networkMode);
+    const resolvedFromChainCandidate = remapChainForNetwork(
+      fromChainParam,
+      networkMode,
+    );
     const resolvedFromChain =
       resolvedFromChainCandidate &&
       isBridgeChainEnabled(resolvedFromChainCandidate)
@@ -428,8 +443,7 @@ function EnabledBridgePageContent({
       networkMode,
     );
     const resolvedToChain =
-      resolvedToChainCandidate &&
-      isBridgeChainEnabled(resolvedToChainCandidate)
+      resolvedToChainCandidate && isBridgeChainEnabled(resolvedToChainCandidate)
         ? resolvedToChainCandidate
         : null;
 
@@ -478,7 +492,6 @@ function EnabledBridgePageContent({
     const previousFromChainId = previousFromChainIdRef.current;
 
     if (
-      previousFromChainId &&
       previousFromChainId !== fromChainId &&
       isSolanaBridgeChain(fromChainId) &&
       !isSolanaConnected &&
@@ -515,13 +528,19 @@ function EnabledBridgePageContent({
   }, [receivingAddress, toChainId]);
 
   const fetchWalletBalance = useCallback(async () => {
+    const requestId = ++walletBalanceRequestIdRef.current;
+
     if (!isNetworkModeReady || !fromChainId || !fromToken) {
       setWalletBalance("0.00");
+      setWalletBalanceStatus("idle");
+      setWalletBalanceKey(null);
       return;
     }
 
     if (isSolanaBridgeChain(fromChainId) && !isSolanaConnected) {
       setWalletBalance("0.00");
+      setWalletBalanceStatus("idle");
+      setWalletBalanceKey(null);
       return;
     }
 
@@ -532,21 +551,32 @@ function EnabledBridgePageContent({
 
     if (!sourceAddress) {
       setWalletBalance("0.00");
+      setWalletBalanceStatus("idle");
+      setWalletBalanceKey(null);
       return;
     }
 
-    const requestId = ++walletBalanceRequestIdRef.current;
+    const tokenAddress = getBridgeTokenAddress(fromChainId, fromToken.symbol);
+    if (!tokenAddress) {
+      setWalletBalance("0.00");
+      setWalletBalanceStatus("error");
+      setWalletBalanceKey(null);
+      console.error(
+        `No bridge token address for ${fromToken.symbol} on ${fromChainId}`,
+      );
+      return;
+    }
+
+    const balanceKey = JSON.stringify([
+      fromChainId,
+      tokenAddress,
+      sourceAddress,
+    ]);
     setWalletBalance("0.00");
+    setWalletBalanceKey(balanceKey);
+    setWalletBalanceStatus("loading");
 
     try {
-      const chainConfig =
-        SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS];
-      if (!chainConfig) return;
-      const tokenAddress = getBridgeTokenAddress(fromChainId, fromToken?.symbol);
-      if (!tokenAddress) {
-        setWalletBalance("0.00");
-        return;
-      }
       const response = await fetch("/api/wallet/balance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -557,17 +587,44 @@ function EnabledBridgePageContent({
         }),
       });
       if (!response.ok) throw new Error("Failed to fetch balance");
-      const data = await response.json();
+      const data: unknown = await response.json();
       if (requestId !== walletBalanceRequestIdRef.current) {
         return;
       }
-      setWalletBalance(data.balance || "0.00");
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error("Wallet balance response was invalid");
+      }
+      const balanceResponse = data as {
+        balance?: unknown;
+        error?: unknown;
+      };
+      const rawBalance = balanceResponse.balance;
+      const parsedBalance =
+        typeof rawBalance === "number"
+          ? rawBalance
+          : typeof rawBalance === "string" && rawBalance.trim()
+            ? Number(rawBalance)
+            : Number.NaN;
+      if (
+        balanceResponse.error ||
+        !Number.isFinite(parsedBalance) ||
+        parsedBalance < 0
+      ) {
+        throw new Error(
+          typeof balanceResponse.error === "string"
+            ? balanceResponse.error
+            : "Wallet balance response contained an invalid balance",
+        );
+      }
+      setWalletBalance(String(rawBalance));
+      setWalletBalanceStatus("ready");
     } catch (error) {
       if (requestId !== walletBalanceRequestIdRef.current) {
         return;
       }
       console.error("Error fetching wallet balance:", error);
       setWalletBalance("0.00");
+      setWalletBalanceStatus("error");
     }
   }, [
     getBridgeAddressForChain,
@@ -685,7 +742,10 @@ function EnabledBridgePageContent({
           );
 
           if (sourceAddress) {
-            const balance = await fetchNativeGasBalance(fromChainId, sourceAddress);
+            const balance = await fetchNativeGasBalance(
+              fromChainId,
+              sourceAddress,
+            );
             setSourceGasBalance(balance);
           } else {
             setSourceGasBalance("0.00");
@@ -744,7 +804,13 @@ function EnabledBridgePageContent({
         feeTokenSymbol,
       );
     }
-  }, [calculateBridgeDetails, fromChainId, toChainId, fromAmount, feeTokenSymbol]);
+  }, [
+    calculateBridgeDetails,
+    fromChainId,
+    toChainId,
+    fromAmount,
+    feeTokenSymbol,
+  ]);
 
   useEffect(() => {
     if (!fromAmount || parseFloat(fromAmount) <= 0) {
@@ -752,7 +818,9 @@ function EnabledBridgePageContent({
       return;
     }
 
-    const estimatedReceivedAmount = parseFloat(bridgeHook.estimatedReceivedAmount);
+    const estimatedReceivedAmount = parseFloat(
+      bridgeHook.estimatedReceivedAmount,
+    );
     setToAmount(
       Number.isFinite(estimatedReceivedAmount)
         ? Math.max(estimatedReceivedAmount, 0).toFixed(2)
@@ -792,7 +860,9 @@ function EnabledBridgePageContent({
         )
       : 0;
 
-    setFromAmount(maxTransferableAmount > 0 ? maxTransferableAmount.toFixed(4) : "0.00");
+    setFromAmount(
+      maxTransferableAmount > 0 ? maxTransferableAmount.toFixed(4) : "0.00",
+    );
   };
 
   const handleSwapChains = () => {
@@ -815,7 +885,9 @@ function EnabledBridgePageContent({
 
   const openBridgeStepsModal = useCallback(() => {
     const sourceChain = BRIDGE_CHAINS.find((chain) => chain.id === fromChainId);
-    const destinationChain = BRIDGE_CHAINS.find((chain) => chain.id === toChainId);
+    const destinationChain = BRIDGE_CHAINS.find(
+      (chain) => chain.id === toChainId,
+    );
 
     setBridgeStepsDetails({
       amount: fromAmount,
@@ -833,7 +905,14 @@ function EnabledBridgePageContent({
     setBridgeActivityStartedAt(Date.now());
     setShowSuccessModal(false);
     setBridgeStepsModalOpen(true);
-  }, [fromAmount, fromChainId, fromToken?.logo, fromToken?.symbol, toAmount, toChainId]);
+  }, [
+    fromAmount,
+    fromChainId,
+    fromToken?.logo,
+    fromToken?.symbol,
+    toAmount,
+    toChainId,
+  ]);
 
   const handleBridge = useCallback(async () => {
     if (!isBridgeRouteEnabled(fromChainId, toChainId)) {
@@ -1043,7 +1122,10 @@ function EnabledBridgePageContent({
   useEffect(() => {
     const previousBridgeStatus = previousBridgeStatusRef.current;
 
-    if (bridgeHook.status === "completed" && previousBridgeStatus === "pending") {
+    if (
+      bridgeHook.status === "completed" &&
+      previousBridgeStatus === "pending"
+    ) {
       setBridgeStepsFailureMessage(null);
       setBridgeStepsPhase("success");
       setBridgeStepsModalOpen(false);
@@ -1065,26 +1147,52 @@ function EnabledBridgePageContent({
     }
 
     previousBridgeStatusRef.current = bridgeHook.status;
-  }, [
-    bridgeHook,
-    fetchToChainBalance,
-    fetchWalletBalance,
-  ]);
+  }, [bridgeHook, fetchToChainBalance, fetchWalletBalance]);
 
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
   const toDisplayToken = toToken;
-  const sourceBridgeAddress =
-    isSolanaBridgeChain(fromChainId)
-      ? isSolanaConnected
-        ? getBridgeAddressForChain(fromChainId, user?.wallet?.address)
-        : ""
-      : getBridgeAddressForChain(fromChainId, user?.wallet?.address);
+  const sourceBridgeAddress = isSolanaBridgeChain(fromChainId)
+    ? isSolanaConnected
+      ? getBridgeAddressForChain(fromChainId, user?.wallet?.address)
+      : ""
+    : getBridgeAddressForChain(fromChainId, user?.wallet?.address);
   const destinationBridgeAddress = getDestinationBridgeAddress(
     toChainId,
     user?.wallet?.address,
   );
   const requestedBridgeAmount = Number.parseFloat(fromAmount);
   const availableBridgeBalance = Number.parseFloat(walletBalance);
+  const sourceTokenAddress =
+    fromChainId && fromToken
+      ? getBridgeTokenAddress(fromChainId, fromToken.symbol)
+      : null;
+  const currentWalletBalanceKey =
+    sourceBridgeAddress && sourceTokenAddress && fromChainId
+      ? JSON.stringify([fromChainId, sourceTokenAddress, sourceBridgeAddress])
+      : null;
+  const hasCurrentWalletBalance =
+    currentWalletBalanceKey !== null &&
+    walletBalanceKey === currentWalletBalanceKey &&
+    walletBalanceStatus === "ready";
+  const hasCurrentWalletBalanceError =
+    currentWalletBalanceKey !== null &&
+    walletBalanceKey === currentWalletBalanceKey &&
+    walletBalanceStatus === "error";
+  const hasValidBridgeAmount =
+    Number.isFinite(requestedBridgeAmount) && requestedBridgeAmount > 0;
+  const isSourceBalanceLoading =
+    hasValidBridgeAmount &&
+    Boolean(currentWalletBalanceKey) &&
+    !hasCurrentWalletBalance &&
+    !hasCurrentWalletBalanceError;
+  const isSourceBalanceUnavailable =
+    hasValidBridgeAmount && hasCurrentWalletBalanceError;
+  const circleFeeAmount = Number.parseFloat(bridgeHook.estimatedCircleFee);
+  const isBridgeAmountBelowCctpFee =
+    !bridgeHook.isLoading &&
+    hasValidBridgeAmount &&
+    Number.isFinite(circleFeeAmount) &&
+    circleFeeAmount >= requestedBridgeAmount;
   const platformFeeAmount = Number.parseFloat(bridgeHook.estimatedPlatformFee);
   const requiredSourceBalance =
     Number.isFinite(requestedBridgeAmount) && requestedBridgeAmount > 0
@@ -1092,7 +1200,9 @@ function EnabledBridgePageContent({
         (Number.isFinite(platformFeeAmount) ? platformFeeAmount : 0)
       : 0;
   const isBridgeBalanceInsufficient =
+    !bridgeHook.isLoading &&
     Boolean(sourceBridgeAddress) &&
+    hasCurrentWalletBalance &&
     Number.isFinite(requiredSourceBalance) &&
     requiredSourceBalance > 0 &&
     requiredSourceBalance > availableBridgeBalance;
@@ -1103,20 +1213,21 @@ function EnabledBridgePageContent({
     ? (BRIDGE_CHAINS.find((c) => c.id === toChainId) ?? null)
     : null;
   const requiresManualDestinationAddress =
-    Boolean(toChainId) && (isSolanaBridgeChain(toChainId) || isSolanaBridgeChain(fromChainId));
+    Boolean(toChainId) &&
+    (isSolanaBridgeChain(toChainId) || isSolanaBridgeChain(fromChainId));
   const isDestinationAddressMissing =
     requiresManualDestinationAddress && !destinationBridgeAddress;
   const isSameChainBridgeRoute =
     Boolean(fromChainId && toChainId) && fromChainId === toChainId;
   const isCctpUnavailable = Boolean(
     fromChainId &&
-      toChainId &&
-      fromChainId !== toChainId &&
-      !isCircleBridgeRouteReady(
-        fromChainId,
-        toChainId,
-        fromToken?.symbol || toToken?.symbol || "USDC",
-      ),
+    toChainId &&
+    fromChainId !== toChainId &&
+    !isCircleBridgeRouteReady(
+      fromChainId,
+      toChainId,
+      fromToken?.symbol || toToken?.symbol || "USDC",
+    ),
   );
   const isBridgeActionDisabled =
     !fromChainId ||
@@ -1127,14 +1238,17 @@ function EnabledBridgePageContent({
     isDestinationAddressMissing ||
     isSameChainBridgeRoute ||
     isCctpUnavailable ||
+    isSourceBalanceLoading ||
+    isSourceBalanceUnavailable ||
+    isBridgeAmountBelowCctpFee ||
     isBridgeBalanceInsufficient ||
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
   const needsSourceEvmWallet = !isSolanaBridgeChain(fromChainId) && !user;
-  const needsSourceSolanaWallet = isSolanaBridgeChain(fromChainId) && !isSolanaConnected;
+  const needsSourceSolanaWallet =
+    isSolanaBridgeChain(fromChainId) && !isSolanaConnected;
   const shouldPromptConnectWallet =
-    needsSourceEvmWallet ||
-    needsSourceSolanaWallet;
+    needsSourceEvmWallet || needsSourceSolanaWallet;
   const isBridgeButtonDisabled = shouldPromptConnectWallet
     ? false
     : isBridgeActionDisabled;
@@ -1151,10 +1265,7 @@ function EnabledBridgePageContent({
     fromAmount,
     fromToken?.usdPrice ?? fromDisplayToken.usdPrice,
   );
-  const toUsdValueLabel = formatUsdAmount(
-    toAmount,
-    toToken?.usdPrice ?? 0,
-  );
+  const toUsdValueLabel = formatUsdAmount(toAmount, toToken?.usdPrice ?? 0);
 
   const handleConnectWallet = async () => {
     if (needsSourceEvmWallet) {
@@ -1216,6 +1327,18 @@ function EnabledBridgePageContent({
       return fromToken?.symbol === "EURC" || toToken?.symbol === "EURC"
         ? "EURC route unavailable"
         : "Route unavailable";
+    }
+
+    if (isSourceBalanceLoading) {
+      return "Checking Balance";
+    }
+
+    if (isSourceBalanceUnavailable) {
+      return "Balance Unavailable";
+    }
+
+    if (isBridgeAmountBelowCctpFee) {
+      return "Amount Below CCTP Fee";
     }
 
     if (isBridgeBalanceInsufficient) {
@@ -1288,7 +1411,11 @@ function EnabledBridgePageContent({
       id: "wait",
       label: "Wait ~2 min",
       status: getModalBridgeStepStatus("wait"),
-      detail: getBridgeStepDetail("wait", "Waiting on Circle", "Bridge delayed"),
+      detail: getBridgeStepDetail(
+        "wait",
+        "Waiting on Circle",
+        "Bridge delayed",
+      ),
       kind: "wait",
     },
     {
@@ -1448,7 +1575,7 @@ function EnabledBridgePageContent({
                     setToAmount("0.00");
                   }}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1, rotate: 90  }}
+                  whileHover={{ scale: 1.1, rotate: 90 }}
                   // transition={{ duration: 0.5 }}
                 >
                   <RefreshCw className="w-5 h-5 text-foreground" />
@@ -1457,7 +1584,7 @@ function EnabledBridgePageContent({
                   type="button"
                   onClick={() => setIsSettingsOpen(true)}
                   className="p-2 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
-                  whileHover={{ scale: 1.1, rotate: 90  }}
+                  whileHover={{ scale: 1.1, rotate: 90 }}
                   whileTap={{ scale: 0.9 }}
                 >
                   <Settings className="w-5 h-5 text-foreground" />
@@ -1610,7 +1737,9 @@ function EnabledBridgePageContent({
                       )}
                     </span>
                   ) : null}
-                  <span className={`font-medium ${toToken ? "text-foreground" : "text-muted-foreground"}`}>
+                  <span
+                    className={`font-medium ${toToken ? "text-foreground" : "text-muted-foreground"}`}
+                  >
                     {toToken ? toToken.label : "Select Token"}
                   </span>
                   <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -1650,11 +1779,28 @@ function EnabledBridgePageContent({
                 className="mb-4 space-y-1 text-xs text-muted-foreground"
               >
                 <div className="flex items-center justify-between rounded-lg bg-[#151617] px-3 py-2">
-                  <span>Bridge Fee</span>
+                  <span>Circle fast + forwarder fee (estimate)</span>
+                  <span className="font-medium text-foreground">
+                    {bridgeHook.estimatedCircleFee} {fromDisplayToken.symbol}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-[#151617] px-3 py-2">
+                  <span>Tower platform fee</span>
+                  <span className="font-medium text-foreground">
+                    {bridgeHook.estimatedPlatformFee} {fromDisplayToken.symbol}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-[#151617] px-3 py-2">
+                  <span>Estimated fees</span>
                   <span className="font-medium text-foreground">
                     {bridgeHook.estimatedFee} {fromDisplayToken.symbol}
                   </span>
                 </div>
+                {/* <p className="px-1 pt-1">
+                  Circle deducts this fee from the bridge amount. The transfer
+                  must be greater than the quoted Circle fee; Tower&apos;s platform
+                  fee, when configured, is charged separately on top.
+                </p> */}
                 <div className="flex items-center justify-between rounded-lg bg-[#151617] px-3 py-2">
                   <span>Estimated Time</span>
                   <span className="font-medium text-foreground">
@@ -1664,11 +1810,12 @@ function EnabledBridgePageContent({
               </motion.div>
             )}
 
-
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <button
                 type="button"
-                onClick={shouldPromptConnectWallet ? handleConnectWallet : handleBridge}
+                onClick={
+                  shouldPromptConnectWallet ? handleConnectWallet : handleBridge
+                }
                 disabled={isBridgeButtonDisabled}
                 className={`inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl text-base font-semibold transition-all ${
                   isBridgeButtonDisabled
@@ -1682,7 +1829,10 @@ function EnabledBridgePageContent({
           </motion.div>
 
           <div className="mt-4 flex items-center justify-center gap-4">
-            {[fromDisplayToken, ...(toDisplayToken ? [toDisplayToken] : [])].map((token, idx) => (
+            {[
+              fromDisplayToken,
+              ...(toDisplayToken ? [toDisplayToken] : []),
+            ].map((token, idx) => (
               <motion.div
                 key={`${token.symbol}-${idx}`}
                 className="flex items-center gap-2 rounded-full border border-border bg-[#191A1C] px-6 py-3"
@@ -1699,7 +1849,9 @@ function EnabledBridgePageContent({
                     />
                   ) : null}
                 </span>
-                <span className="font-medium text-foreground">{token.symbol}</span>
+                <span className="font-medium text-foreground">
+                  {token.symbol}
+                </span>
                 <span className="text-[11px] text-muted-foreground">
                   {token.usdValue}
                 </span>
@@ -1794,7 +1946,9 @@ function EnabledBridgePageContent({
                         saveRecentAddress(receivingAddress);
                         setIsReceivingOpen(false);
                       }}
-                      whileHover={canSaveReceivingAddress ? { scale: 1.01 } : {}}
+                      whileHover={
+                        canSaveReceivingAddress ? { scale: 1.01 } : {}
+                      }
                       whileTap={canSaveReceivingAddress ? { scale: 0.98 } : {}}
                       className={`w-full rounded-full py-3 text-xs font-semibold transition-all shadow-md ${
                         !canSaveReceivingAddress
@@ -1807,17 +1961,28 @@ function EnabledBridgePageContent({
 
                     {recentAddresses.length > 0 && (
                       <div className="pt-2">
-                        <div className="flex items-center justify-between mb-2 font-sora" style={{ fontFamily: "var(--font-sora)" }}>
-                          <p className="text-xs font-medium text-muted-foreground" style={{ fontFamily: "var(--font-sora)" }}>
+                        <div
+                          className="flex items-center justify-between mb-2 font-sora"
+                          style={{ fontFamily: "var(--font-sora)" }}
+                        >
+                          <p
+                            className="text-xs font-medium text-muted-foreground"
+                            style={{ fontFamily: "var(--font-sora)" }}
+                          >
                             Recent Addresses
                           </p>
-                          <span className="text-[10px] text-muted-foreground/60" style={{ fontFamily: "var(--font-sora)" }}>
+                          <span
+                            className="text-[10px] text-muted-foreground/60"
+                            style={{ fontFamily: "var(--font-sora)" }}
+                          >
                             {recentAddresses.length} saved
                           </span>
                         </div>
                         <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5 custom-scrollbar">
                           {recentAddresses.map((address) => {
-                            const isSelected = receivingAddress.toLowerCase() === address.toLowerCase();
+                            const isSelected =
+                              receivingAddress.toLowerCase() ===
+                              address.toLowerCase();
                             return (
                               <motion.button
                                 key={address}
@@ -1834,7 +1999,10 @@ function EnabledBridgePageContent({
                                   <span className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
                                     <Wallet className="h-3.5 w-3.5" />
                                   </span>
-                                  <span className="truncate font-sora text-xs" style={{ fontFamily: "var(--font-sora)" }}>
+                                  <span
+                                    className="truncate font-sora text-xs"
+                                    style={{ fontFamily: "var(--font-sora)" }}
+                                  >
                                     {address.length > 20
                                       ? `${address.slice(0, 8)}...${address.slice(-6)}`
                                       : address}
@@ -1895,7 +2063,8 @@ function EnabledBridgePageContent({
                         Your tokens have been successfully bridged to{" "}
                         <span className="font-bold text-white">
                           {destinationChainName}
-                        </span>.
+                        </span>
+                        .
                       </p>
                     ) : (
                       <>
@@ -1911,11 +2080,12 @@ function EnabledBridgePageContent({
                             {bridgeHook.estimatedTime || "2 Minutes"}
                           </span>
                         </p>
-                        {bridgeHook.status === "pending" && bridgeHook.message && (
-                          <p className="mt-1 text-xs font-medium text-amber-400">
-                            Pending: {bridgeHook.message}
-                          </p>
-                        )}
+                        {bridgeHook.status === "pending" &&
+                          bridgeHook.message && (
+                            <p className="mt-1 text-xs font-medium text-amber-400">
+                              Pending: {bridgeHook.message}
+                            </p>
+                          )}
                       </>
                     )}
                     <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 pt-1">

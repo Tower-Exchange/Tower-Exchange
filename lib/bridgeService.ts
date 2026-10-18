@@ -15,6 +15,8 @@ import {
   http,
   Chain as ViemChain,
   type EIP1193Provider,
+  formatUnits,
+  parseUnits,
 } from "viem";
 import {
   arbitrum,
@@ -758,6 +760,8 @@ const withSolanaMessageSigning = (
 const BRIDGE_STEP_RECEIPT_TIMEOUT_MS = 5 * 60 * 1000;
 const BRIDGE_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_USE_CIRCLE_FORWARDER = true;
+const CIRCLE_IRIS_MAINNET_URL = "https://iris-api.circle.com";
+const CIRCLE_IRIS_SANDBOX_URL = "https://iris-api-sandbox.circle.com";
 const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
   "burn",
   "depositForBurn",
@@ -768,6 +772,95 @@ const ACTIONABLE_PENDING_BRIDGE_STEPS = new Set([
 function isBridgeSourceTransactionStep(stepName?: string): boolean {
   return stepName === "burn" || stepName === "depositForBurn";
 }
+
+async function getCctpFastForwardingFees(
+  sourceDomain: number,
+  destinationDomain: number,
+  isTestnet: boolean,
+): Promise<{ forwarderFee: bigint; scaledBurnFeeBps: bigint }> {
+  const baseUrl = isTestnet
+    ? CIRCLE_IRIS_SANDBOX_URL
+    : CIRCLE_IRIS_MAINNET_URL;
+  const response = await fetch(
+    `${baseUrl}/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}?forward=true`,
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Circle fee quote request failed with HTTP ${response.status}.`,
+    );
+  }
+
+  const payload: unknown = await response.json();
+  if (!Array.isArray(payload)) {
+    throw new Error("Circle returned an invalid forwarding fee quote.");
+  }
+
+  const fastFeeTier = payload.find(
+    (tier): tier is {
+      finalityThreshold: number;
+      minimumFee: string | number;
+      forwardFee: { high: string | number };
+    } =>
+      typeof tier === "object" &&
+      tier !== null &&
+      "finalityThreshold" in tier &&
+      tier.finalityThreshold === 1000 &&
+      "minimumFee" in tier &&
+      (typeof tier.minimumFee === "string" ||
+        typeof tier.minimumFee === "number") &&
+      "forwardFee" in tier &&
+      typeof tier.forwardFee === "object" &&
+      tier.forwardFee !== null &&
+      "high" in tier.forwardFee &&
+      (typeof tier.forwardFee.high === "string" ||
+        typeof tier.forwardFee.high === "number"),
+  );
+
+  if (!fastFeeTier) {
+    throw new Error(
+      "Circle did not return a high-tier FAST forwarding fee for this route.",
+    );
+  }
+
+  // Circle's CCTP provider deliberately uses this tier for the forwarder so
+  // destination-gas movements cannot leave the depositForBurn maxFee too low.
+  // The value must match the tier used by the provider that builds the burn.
+  const highFee = fastFeeTier.forwardFee.high;
+  if (
+    (typeof highFee === "number" && !Number.isSafeInteger(highFee)) ||
+    (typeof highFee === "string" && !/^\d+$/.test(highFee))
+  ) {
+    throw new Error("Circle returned an invalid high-tier forwarding fee.");
+  }
+
+  const forwarderFee = BigInt(highFee);
+  if (forwarderFee < 0n) {
+    throw new Error("Circle returned a negative forwarding fee.");
+  }
+
+  const minimumFeeBps = Number.parseFloat(String(fastFeeTier.minimumFee));
+  if (!Number.isFinite(minimumFeeBps) || minimumFeeBps < 0) {
+    throw new Error("Circle returned an invalid FAST CCTP fee.");
+  }
+
+  return {
+    forwarderFee,
+    scaledBurnFeeBps: BigInt(Math.round(minimumFeeBps * 100)),
+  };
+}
+
+function calculateFastForwardingMaxFee(
+  amountInMinorUnits: bigint,
+  fees: { forwarderFee: bigint; scaledBurnFeeBps: bigint },
+): bigint {
+  const burnFee =
+    (fees.scaledBurnFeeBps * amountInMinorUnits + 999_999n) / 1_000_000n;
+  const burnFeeWithBuffer = burnFee + burnFee / 10n;
+
+  return burnFeeWithBuffer + fees.forwarderFee;
+}
+
 const CHAIN_SWITCH_RESTORE_DELAY_MS = 350;
 
 export type BridgeProgressSnapshot = {
@@ -1463,11 +1556,17 @@ const getBridgeFeeQuote = (
   fromChain: string,
   amount: string,
   tokenSymbol: string = "USDC",
+  circleFeeOverride?: number,
 ): BridgeFeeQuote => {
   const transferAmount = Number.parseFloat(amount);
   const safeTransferAmount =
     Number.isFinite(transferAmount) && transferAmount > 0 ? transferAmount : 0;
-  const circleFee = getBridgeProtocolFee(tokenSymbol);
+  const circleFee =
+    circleFeeOverride !== undefined &&
+    Number.isFinite(circleFeeOverride) &&
+    circleFeeOverride >= 0
+      ? circleFeeOverride
+      : getBridgeProtocolFee(tokenSymbol);
   const customFee = getConfiguredCustomBridgeFee(fromChain);
   const platformFee = customFee ? Number.parseFloat(customFee.value) : 0;
   const amountReceived = Math.max(safeTransferAmount - circleFee, 0);
@@ -1490,6 +1589,7 @@ type PreparedSolanaRecipient = {
   ataAddress: string;
   created: boolean;
   sponsored: boolean;
+  sponsorAddress: string | null;
 };
 
 const prepareSolanaBridgeRecipient = async (
@@ -1515,6 +1615,7 @@ const prepareSolanaBridgeRecipient = async (
         ataAddress?: string;
         created?: boolean;
         sponsored?: boolean;
+        sponsorAddress?: string | null;
       }
     | null;
 
@@ -1530,6 +1631,7 @@ const prepareSolanaBridgeRecipient = async (
     ataAddress: payload.ataAddress,
     created: Boolean(payload.created),
     sponsored: Boolean(payload.sponsored),
+    sponsorAddress: payload.sponsorAddress ?? null,
   };
 };
 
@@ -1883,8 +1985,12 @@ export async function bridgeTokens(
   const initialWalletChainId = shouldTrackEvmWalletChain
     ? await getActiveWalletChainId(request.walletClient)
     : null;
-  const resolvedUseForwarder =
-    request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER;
+  const isEvmToSolanaRoute =
+    !isSolanaBridgeChain(request.fromChain) &&
+    isSolanaBridgeChain(request.toChain);
+  const resolvedUseForwarder = isEvmToSolanaRoute
+    ? true
+    : (request.useForwarder ?? DEFAULT_USE_CIRCLE_FORWARDER);
 
   try {
     if (!isPositiveDecimalAmount(request.amount)) {
@@ -1953,6 +2059,36 @@ export async function bridgeTokens(
       }
     }
 
+    let preparedSolanaSource: PreparedSolanaRecipient | null = null;
+    if (
+      isSolanaBridgeChain(request.fromChain) &&
+      (request.token || "USDC").toUpperCase() === "USDC"
+    ) {
+      const sourceSolanaAddress = getSolanaProviderAddress(
+        getConnectedSolanaProvider(),
+        getConnectedSolanaAddress(),
+      );
+
+      if (!sourceSolanaAddress || !isValidAddress(sourceSolanaAddress, "solana")) {
+        return {
+          success: false,
+          error: `Solana wallet not connected. Please connect a supported Solana wallet to ${fromChainConfig.name}.`,
+        };
+      }
+
+      try {
+        preparedSolanaSource = await prepareSolanaBridgeRecipient(
+          sourceSolanaAddress,
+          request.fromChain,
+        );
+      } catch (error) {
+        return {
+          success: false,
+          error: getBridgeErrorMessage(error),
+        };
+      }
+    }
+
     let resolvedDestinationAddress = requestedDestinationAddress;
     let preparedSolanaRecipient: PreparedSolanaRecipient | null = null;
 
@@ -1991,8 +2127,14 @@ export async function bridgeTokens(
       destChainId: toChainConfig.chainId,
       hasCustomClients: !!request.publicClient,
       useForwarder: resolvedUseForwarder,
+      solanaSourceAtaPrepared: Boolean(preparedSolanaSource),
+      solanaSourceAta: preparedSolanaSource?.ataAddress,
+      solanaSourceAtaCreated: preparedSolanaSource?.created,
+      solanaSourceAtaSponsored: preparedSolanaSource?.sponsored,
+      solanaSourceAtaSponsor: preparedSolanaSource?.sponsorAddress,
       solanaRecipientPrepared: Boolean(preparedSolanaRecipient),
       solanaRecipientAta: preparedSolanaRecipient?.ataAddress,
+      solanaRecipientAtaSponsor: preparedSolanaRecipient?.sponsorAddress,
     });
 
     // Use Circle's recommended client-side bridge with browser wallet
@@ -2021,7 +2163,6 @@ export async function bridgeTokens(
     }
 
     const useForwarder = resolvedUseForwarder;
-    const requiresDestinationAdapter = !(useForwarder && resolvedDestinationAddress);
 
     if (!resolvedDestinationAddress) {
       return {
@@ -2077,9 +2218,71 @@ export async function bridgeTokens(
       }
     }
 
+    const tokenSymbol = (request.token || "USDC").toUpperCase();
+    if (tokenSymbol !== "USDC" && tokenSymbol !== "EURC") {
+      return {
+        success: false,
+        error: `${request.token} bridging is not supported. Bridge USDC or EURC.`,
+      };
+    }
+
+    const amountInMinorUnits = parseUnits(request.amount, 6);
+    const customFee = getConfiguredCustomBridgeFee(request.fromChain);
+    const useFastForwarding = isEvmToSolanaRoute && useForwarder;
+    let fastForwardingMaxFee: bigint | null = null;
+
+    if (useFastForwarding) {
+      if (tokenSymbol !== "USDC") {
+        return {
+          success: false,
+          error: "Circle forwarding to Solana currently supports USDC only.",
+        };
+      }
+
+      if (!Number.isInteger(fromChainObj.cctp.domain) ||
+        !Number.isInteger(toChainObj.cctp.domain)
+      ) {
+        throw new Error(
+          "Circle chain domain is unavailable for the forwarding fee quote.",
+        );
+      }
+
+      const fastForwardingFees = await getCctpFastForwardingFees(
+        fromChainObj.cctp.domain,
+        toChainObj.cctp.domain,
+        fromChainObj.isTestnet,
+      );
+      fastForwardingMaxFee = calculateFastForwardingMaxFee(
+        amountInMinorUnits,
+        fastForwardingFees,
+      );
+
+      if (fastForwardingMaxFee >= amountInMinorUnits) {
+        const minimumTransferAmount = fastForwardingMaxFee + 1n;
+        return {
+          success: false,
+          error:
+            `Circle's estimated FAST burn and forwarding fees for this route total ${formatUnits(fastForwardingMaxFee, 6)} USDC, which is not less than the transfer amount (${request.amount} USDC). ` +
+            `The transfer amount must be at least ${formatUnits(minimumTransferAmount, 6)} USDC at the current quote. This is separate from Tower's platform fee, which is charged on top.`,
+        };
+      }
+    }
+
+    const bridgeConfig = {
+      ...(fastForwardingMaxFee !== null
+        ? {
+            transferSpeed: "FAST" as const,
+            maxFee: formatUnits(fastForwardingMaxFee, 6),
+          }
+        : {}),
+      ...(customFee ? { customFee } : {}),
+    };
+
+    const requiresDestinationAdapter =
+      !(useForwarder && resolvedDestinationAddress);
     if (requiresDestinationAdapter) {
       if (isSolanaBridgeChain(request.toChain)) {
-        toAdapter = await ensureSolanaBridgeAdapter(request.toChain);
+        toAdapter ??= await ensureSolanaBridgeAdapter(request.toChain);
         if (!toAdapter) {
           return {
             success: false,
@@ -2104,16 +2307,6 @@ export async function bridgeTokens(
       token: request.token,
       useForwarder,
     });
-
-    const tokenSymbol = (request.token || "USDC").toUpperCase();
-    if (tokenSymbol !== "USDC" && tokenSymbol !== "EURC") {
-      return {
-        success: false,
-        error: `${request.token} bridging is not supported. Bridge USDC or EURC.`,
-      };
-    }
-
-    const customFee = getConfiguredCustomBridgeFee(request.fromChain);
 
     if (!customFee) {
       const configuredCustomFeeAmount = Number.parseFloat(
@@ -2201,11 +2394,9 @@ export async function bridgeTokens(
               request.fromChain === "arc" || request.toChain === "arc",
           }),
         },
-        ...(customFee
+        ...(Object.keys(bridgeConfig).length > 0
           ? {
-              config: {
-                customFee,
-              },
+              config: bridgeConfig,
             }
           : {}),
       });
@@ -2688,11 +2879,56 @@ export function getSupportedBridgeRoutes(): Array<{
  */
 export async function getBridgeFees(
   fromChain: string,
-  _toChain: string,
+  toChain: string,
   amount: string,
   tokenSymbol: string = "USDC",
 ): Promise<BridgeFeeQuote> {
-  return getBridgeFeeQuote(fromChain, amount, tokenSymbol);
+  const fallbackQuote = getBridgeFeeQuote(fromChain, amount, tokenSymbol);
+  const normalizedTokenSymbol = tokenSymbol.toUpperCase();
+  const fromChainObj = CIRCLE_CHAIN_OBJECTS[fromChain];
+  const toChainObj = CIRCLE_CHAIN_OBJECTS[toChain];
+
+  // The bridge UI always uses Circle's forwarder. Mirror the provider's
+  // high-tier quote here so the displayed receive amount and its minimum are
+  // not based on the old, fixed protocol-fee approximation.
+  if (
+    normalizedTokenSymbol !== "USDC" ||
+    fromChain === toChain ||
+    !fromChainObj ||
+    !toChainObj ||
+    !Number.isInteger(fromChainObj.cctp.domain) ||
+    !Number.isInteger(toChainObj.cctp.domain)
+  ) {
+    return fallbackQuote;
+  }
+
+  try {
+    const amountInMinorUnits = parseUnits(amount, 6);
+    if (amountInMinorUnits <= 0n) {
+      return fallbackQuote;
+    }
+
+    const fees = await getCctpFastForwardingFees(
+      fromChainObj.cctp.domain,
+      toChainObj.cctp.domain,
+      fromChainObj.isTestnet,
+    );
+    const circleFee = Number(
+      formatUnits(
+        calculateFastForwardingMaxFee(amountInMinorUnits, fees),
+        6,
+      ),
+    );
+
+    return Number.isFinite(circleFee)
+      ? getBridgeFeeQuote(fromChain, amount, tokenSymbol, circleFee)
+      : fallbackQuote;
+  } catch (error) {
+    // Fee quotation is informational. The bridge execution path always obtains
+    // a fresh quote and remains the authoritative minimum-amount check.
+    console.warn("Unable to obtain Circle forwarding fee quote:", error);
+    return fallbackQuote;
+  }
 }
 
 /**
@@ -2836,4 +3072,3 @@ export default {
   SUPPORTED_CHAINS,
   VIEM_CHAIN_MAP,
 };
-

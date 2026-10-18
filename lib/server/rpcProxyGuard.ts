@@ -52,6 +52,7 @@ const SOLANA_METHODS = new Set([
   "getblock",
   "getblockheight",
   "getfeeformessage",
+  "getgenesishash",
   "gethealth",
   "getlatestblockhash",
   "getminimumbalanceforrentexemption",
