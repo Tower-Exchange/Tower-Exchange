@@ -43,6 +43,19 @@ const nextConfig: NextConfig = {
         source: "/v1/human-proof/:path*",
         destination: "https://169-58-244-12.sslip.io/v1/human-proof/:path*",
       },
+      // Sign-in for ChatGPT / Claude connectors on www.tower.exchange/mcp.
+      // The OAuth standard makes apps look these two up at the site root;
+      // everything else (authorize/token/register, the wallet sign-in and
+      // swap-confirm pages) lives under /mcp-app/, all served by tower-mcp.
+      ...[
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-protected-resource/:path*",
+        "/.well-known/oauth-authorization-server",
+        "/mcp-app/:path*",
+      ].map((source) => ({
+        source,
+        destination: `https://169-58-244-12.sslip.io${source}`,
+      })),
     ];
   },
 };
