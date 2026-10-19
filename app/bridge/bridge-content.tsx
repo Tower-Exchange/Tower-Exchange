@@ -1796,11 +1796,10 @@ function EnabledBridgePageContent({
                     {bridgeHook.estimatedFee} {fromDisplayToken.symbol}
                   </span>
                 </div>
-                {/* <p className="px-1 pt-1">
-                  Circle deducts this fee from the bridge amount. The transfer
-                  must be greater than the quoted Circle fee; Tower&apos;s platform
-                  fee, when configured, is charged separately on top.
-                </p> */}
+                <p className="px-1 pt-1">
+                  Minimum bridge amount: 1 {fromDisplayToken.symbol} (or
+                  equivalent in USD)
+                </p>
                 <div className="flex items-center justify-between rounded-lg bg-[#151617] px-3 py-2">
                   <span>Estimated Time</span>
                   <span className="font-medium text-foreground">
