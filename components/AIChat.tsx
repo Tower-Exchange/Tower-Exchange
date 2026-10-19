@@ -48,6 +48,8 @@ import chatLogo from "@/public/assets/chat_logo.svg";
 interface VoiceNote {
   url: string;
   durationSec: number;
+  // Play once as soon as the bubble appears (Atlas's spoken replies).
+  autoPlay?: boolean;
 }
 
 interface Message {
@@ -80,6 +82,20 @@ const VoiceNoteBubble = ({
   const progress =
     durationSec > 0 ? Math.min(100, (elapsed / durationSec) * 100) : 0;
   const isUser = variant === "user";
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!voiceNote.autoPlay || !audio) return;
+    // Only the first time: don't replay when the chat re-renders or remounts.
+    voiceNote.autoPlay = false;
+    // Stop any other voice note so two don't talk over each other.
+    document.querySelectorAll("audio").forEach((other) => {
+      if (other !== audio) other.pause();
+    });
+    // The browser may block sound without a recent tap; the play button
+    // still works then.
+    audio.play().catch(() => {});
+  }, [voiceNote]);
 
   const togglePlayback = () => {
     const audio = audioRef.current;
@@ -940,7 +956,7 @@ export const AIChat = () => {
           const audio = await fetchVoiceReply(response.audio_id);
           const url = URL.createObjectURL(audio);
           voiceNoteUrlsRef.current.push(url);
-          replyVoiceNote = { url, durationSec: 0 };
+          replyVoiceNote = { url, durationSec: 0, autoPlay: true };
         } catch (voiceError) {
           console.error("Atlas voice reply failed, showing text:", voiceError);
         }
