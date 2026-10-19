@@ -2,10 +2,10 @@
 
 /**
  * Bridge Service - Arc Network Bridge Integration
- * 
+ *
  * Handles bridging USDC across different EVM blockchains using Arc's Bridge Kit
  * Reference: https://docs.arc.io/app-kit/bridge
- * 
+ *
  * This module uses browser APIs (window.ethereum) and must run on the client-side
  */
 
@@ -400,12 +400,12 @@ const SUPPORTED_EVM_CIRCLE_CHAINS = [
   Linea,
 ] as const;
 
-
 type CircleSolanaProvider = SolanaWalletProvider;
 
 type SolanaSignableTransaction = Transaction | VersionedTransaction;
 
-const decodeBase64Value = (value: string) => Uint8Array.from(Buffer.from(value, "base64"));
+const decodeBase64Value = (value: string) =>
+  Uint8Array.from(Buffer.from(value, "base64"));
 
 const encodeBase64Value = (value: Uint8Array) =>
   Buffer.from(value).toString("base64");
@@ -413,7 +413,11 @@ const encodeBase64Value = (value: Uint8Array) =>
 const getSolanaProviderAddress = (
   provider: SolanaWalletProvider | null | undefined,
   fallbackAddress?: string,
-) => provider?.publicKey?.toString?.() ?? provider?.address ?? fallbackAddress ?? "";
+) =>
+  provider?.publicKey?.toString?.() ??
+  provider?.address ??
+  fallbackAddress ??
+  "";
 
 const setSolanaProviderAddress = (
   provider: SolanaWalletProvider | null | undefined,
@@ -475,11 +479,13 @@ const getSolanaConnectResultAddress = (
   fallbackAddress: string,
 ) =>
   result && typeof result === "object" && "publicKey" in result
-    ? (result as { publicKey?: { toString?: () => string } | null }).publicKey?.toString?.() ??
-      getSolanaProviderAddress(provider, fallbackAddress)
+    ? ((
+        result as { publicKey?: { toString?: () => string } | null }
+      ).publicKey?.toString?.() ??
+      getSolanaProviderAddress(provider, fallbackAddress))
     : result && typeof result === "object" && "address" in result
       ? ((result as { address?: string }).address ??
-          getSolanaProviderAddress(provider, fallbackAddress))
+        getSolanaProviderAddress(provider, fallbackAddress))
       : getSolanaProviderAddress(provider, fallbackAddress);
 
 const refreshTrustedPhantomSession = async (
@@ -492,7 +498,11 @@ const refreshTrustedPhantomSession = async (
 
   try {
     const result = await provider.connect({ onlyIfTrusted: true });
-    const address = getSolanaConnectResultAddress(result, provider, fallbackAddress);
+    const address = getSolanaConnectResultAddress(
+      result,
+      provider,
+      fallbackAddress,
+    );
 
     if (!address) {
       return null;
@@ -501,7 +511,10 @@ const refreshTrustedPhantomSession = async (
     setSolanaProviderAddress(provider, address);
     return address;
   } catch (error) {
-    console.warn("Unable to silently refresh Phantom session before signing:", error);
+    console.warn(
+      "Unable to silently refresh Phantom session before signing:",
+      error,
+    );
     return null;
   }
 };
@@ -525,7 +538,11 @@ const ensureConnectedSolanaProvider = async (
   }
 
   const result = await provider.connect();
-  const address = getSolanaConnectResultAddress(result, provider, fallbackAddress);
+  const address = getSolanaConnectResultAddress(
+    result,
+    provider,
+    fallbackAddress,
+  );
 
   if (!address) {
     throw new Error("Wallet connection did not return an address");
@@ -602,7 +619,9 @@ const createCircleCompatibleSolanaProvider = (
     },
     signTransaction: async (wireTransaction: unknown) => {
       if (typeof wireTransaction !== "string") {
-        throw new Error("Expected a base64-encoded Solana transaction payload.");
+        throw new Error(
+          "Expected a base64-encoded Solana transaction payload.",
+        );
       }
 
       const decodedTransaction = decodeSolanaWireTransaction(wireTransaction);
@@ -617,7 +636,9 @@ const createCircleCompatibleSolanaProvider = (
         isConnected: provider.isConnected,
         address: resolveAddress(),
         transactionType:
-          decodedTransaction instanceof VersionedTransaction ? "versioned" : "legacy",
+          decodedTransaction instanceof VersionedTransaction
+            ? "versioned"
+            : "legacy",
       });
       const signedTransaction = await withSolanaProviderConnectionRetry(
         provider,
@@ -636,15 +657,17 @@ const createCircleCompatibleSolanaProvider = (
     ...(provider.signAllTransactions
       ? {
           signAllTransactions: async (wireTransactions: unknown[]) => {
-            const decodedTransactions = wireTransactions.map((wireTransaction) => {
-              if (typeof wireTransaction !== "string") {
-                throw new Error(
-                  "Expected base64-encoded Solana transaction payloads.",
-                );
-              }
+            const decodedTransactions = wireTransactions.map(
+              (wireTransaction) => {
+                if (typeof wireTransaction !== "string") {
+                  throw new Error(
+                    "Expected base64-encoded Solana transaction payloads.",
+                  );
+                }
 
-              return decodeSolanaWireTransaction(wireTransaction);
-            });
+                return decodeSolanaWireTransaction(wireTransaction);
+              },
+            );
             console.log("Solana provider signAllTransactions requested", {
               wallet: provider.isPhantom
                 ? "phantom"
@@ -682,7 +705,11 @@ const withSolanaMessageSigning = (
   provider: SolanaWalletProvider,
   fallbackAddress: string,
 ) => {
-  if (!adapter || typeof adapter.getSigner !== "function" || !provider.signMessage) {
+  if (
+    !adapter ||
+    typeof adapter.getSigner !== "function" ||
+    !provider.signMessage
+  ) {
     return adapter;
   }
 
@@ -778,9 +805,7 @@ async function getCctpFastForwardingFees(
   destinationDomain: number,
   isTestnet: boolean,
 ): Promise<{ forwarderFee: bigint; scaledBurnFeeBps: bigint }> {
-  const baseUrl = isTestnet
-    ? CIRCLE_IRIS_SANDBOX_URL
-    : CIRCLE_IRIS_MAINNET_URL;
+  const baseUrl = isTestnet ? CIRCLE_IRIS_SANDBOX_URL : CIRCLE_IRIS_MAINNET_URL;
   const response = await fetch(
     `${baseUrl}/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}?forward=true`,
   );
@@ -797,7 +822,9 @@ async function getCctpFastForwardingFees(
   }
 
   const fastFeeTier = payload.find(
-    (tier): tier is {
+    (
+      tier,
+    ): tier is {
       finalityThreshold: number;
       minimumFee: string | number;
       forwardFee: { high: string | number };
@@ -885,7 +912,9 @@ function getBridgeErrorDiagnostics(error: unknown, depth = 0): unknown {
 
   const record = error as Record<string, unknown>;
   const cause =
-    "cause" in record ? getBridgeErrorDiagnostics(record.cause, depth + 1) : undefined;
+    "cause" in record
+      ? getBridgeErrorDiagnostics(record.cause, depth + 1)
+      : undefined;
   const trace =
     record.cause &&
     typeof record.cause === "object" &&
@@ -939,9 +968,11 @@ function isBridgeNetworkError(message: string): boolean {
   );
 }
 
-function hasActionableBridgeProgress(progress: BridgeProgressSnapshot): boolean {
+function hasActionableBridgeProgress(
+  progress: BridgeProgressSnapshot,
+): boolean {
   return progress.events.some((event) =>
-    ACTIONABLE_PENDING_BRIDGE_STEPS.has(event.step)
+    ACTIONABLE_PENDING_BRIDGE_STEPS.has(event.step),
   );
 }
 
@@ -1002,7 +1033,7 @@ const RELAYER_RETRYABLE_BRIDGE_ERROR_PATTERNS = [
 function isBridgeRelayerFailureMessage(message: string): boolean {
   const normalizedMessage = message.toLowerCase();
   return RELAYER_RETRYABLE_BRIDGE_ERROR_PATTERNS.some((pattern) =>
-    normalizedMessage.includes(pattern)
+    normalizedMessage.includes(pattern),
   );
 }
 
@@ -1044,7 +1075,11 @@ function getRetryableFailedBridgeStep(result: unknown): any | null {
 
   return (
     steps.find((step) => {
-      if (!step || typeof step !== "object" || (step as any).state !== "error") {
+      if (
+        !step ||
+        typeof step !== "object" ||
+        (step as any).state !== "error"
+      ) {
         return false;
       }
 
@@ -1100,10 +1135,9 @@ export async function waitForForwardedBridgeCompletion(
     };
   }
 
-  const sourceAdapter =
-    isSolanaBridgeChain(request.fromChain)
-      ? await ensureSolanaBridgeAdapter(request.fromChain)
-      : await ensureEvmBridgeAdapter(request);
+  const sourceAdapter = isSolanaBridgeChain(request.fromChain)
+    ? await ensureSolanaBridgeAdapter(request.fromChain)
+    : await ensureEvmBridgeAdapter(request);
 
   if (!sourceAdapter) {
     return {
@@ -1133,7 +1167,8 @@ export async function waitForForwardedBridgeCompletion(
       },
     );
 
-    const transactionHash = (attestation as { forwardTxHash?: string }).forwardTxHash;
+    const transactionHash = (attestation as { forwardTxHash?: string })
+      .forwardTxHash;
 
     if (!transactionHash) {
       return {
@@ -1186,7 +1221,7 @@ function withBridgeTransactionTimeouts<T>(adapter: T): T {
     waitForTransaction?: (
       txHash: string,
       config: { confirmations?: number; timeout?: number } | undefined,
-      chain: unknown
+      chain: unknown,
     ) => Promise<unknown>;
     __towerBridgeTimeoutPatched?: boolean;
   };
@@ -1199,7 +1234,8 @@ function withBridgeTransactionTimeouts<T>(adapter: T): T {
     return adapter;
   }
 
-  const originalWaitForTransaction = candidate.waitForTransaction.bind(candidate);
+  const originalWaitForTransaction =
+    candidate.waitForTransaction.bind(candidate);
   candidate.waitForTransaction = (txHash, config, chain) =>
     originalWaitForTransaction(
       txHash,
@@ -1207,7 +1243,7 @@ function withBridgeTransactionTimeouts<T>(adapter: T): T {
         ...config,
         timeout: config?.timeout ?? BRIDGE_STEP_RECEIPT_TIMEOUT_MS,
       },
-      chain
+      chain,
     );
   candidate.__towerBridgeTimeoutPatched = true;
 
@@ -1246,7 +1282,9 @@ const getEvmRequestProvider = (
   return null;
 };
 
-async function getActiveWalletChainId(walletClient?: BridgeRequest["walletClient"]): Promise<string | null> {
+async function getActiveWalletChainId(
+  walletClient?: BridgeRequest["walletClient"],
+): Promise<string | null> {
   const provider = getEvmRequestProvider(walletClient);
 
   if (!provider) {
@@ -1383,7 +1421,8 @@ export async function ensureWalletOnBridgeChain(
     return;
   }
 
-  const chainConfig = SUPPORTED_CHAINS[chainKey as keyof typeof SUPPORTED_CHAINS];
+  const chainConfig =
+    SUPPORTED_CHAINS[chainKey as keyof typeof SUPPORTED_CHAINS];
   if (!chainConfig) {
     throw new Error(`Unsupported chain: ${chainKey}`);
   }
@@ -1474,7 +1513,9 @@ export async function ensureWalletOnBridgeChain(
     typeof currentChainId !== "string" ||
     normalizeWalletChainHex(currentChainId) !== normalizedTargetChainHex
   ) {
-    throw new Error(`Please switch to ${chainConfig.name} to continue bridging.`);
+    throw new Error(
+      `Please switch to ${chainConfig.name} to continue bridging.`,
+    );
   }
 }
 /**
@@ -1503,6 +1544,7 @@ type BridgeCustomFeeConfig = {
 };
 
 type BridgeFeeQuote = {
+  minimumBridgeAmount: string;
   circleFee: string;
   platformFee: string;
   totalFee: string;
@@ -1540,9 +1582,14 @@ const getConfiguredCustomBridgeFee = (
   const recipientAddress = isSolanaBridgeChain(sourceChain)
     ? BRIDGE_CUSTOM_FEE_RECIPIENT_SOLANA
     : BRIDGE_CUSTOM_FEE_RECIPIENT_EVM;
-  const recipientChainType = isSolanaBridgeChain(sourceChain) ? "solana" : "evm";
+  const recipientChainType = isSolanaBridgeChain(sourceChain)
+    ? "solana"
+    : "evm";
 
-  if (!recipientAddress || !isValidAddress(recipientAddress, recipientChainType)) {
+  if (
+    !recipientAddress ||
+    !isValidAddress(recipientAddress, recipientChainType)
+  ) {
     return null;
   }
 
@@ -1581,6 +1628,7 @@ const getBridgeFeeQuote = (
     amountReceived: formatBridgeFeeAmount(amountReceived),
     sourceDebitTotal: formatBridgeFeeAmount(sourceDebitTotal),
     customFeeEnabled: platformFee > 0,
+    minimumBridgeAmount: "1.00",
   };
 };
 
@@ -1607,19 +1655,22 @@ const prepareSolanaBridgeRecipient = async (
     }),
   });
 
-  const payload = (await response.json().catch(() => null)) as
-    | {
-        success?: boolean;
-        error?: string;
-        ownerAddress?: string;
-        ataAddress?: string;
-        created?: boolean;
-        sponsored?: boolean;
-        sponsorAddress?: string | null;
-      }
-    | null;
+  const payload = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    error?: string;
+    ownerAddress?: string;
+    ataAddress?: string;
+    created?: boolean;
+    sponsored?: boolean;
+    sponsorAddress?: string | null;
+  } | null;
 
-  if (!response.ok || !payload?.success || !payload.ataAddress || !payload.ownerAddress) {
+  if (
+    !response.ok ||
+    !payload?.success ||
+    !payload.ataAddress ||
+    !payload.ownerAddress
+  ) {
     throw new Error(
       payload?.error ||
         "Unable to prepare the Solana receiving wallet right now.",
@@ -1679,13 +1730,13 @@ export interface SupportedToken {
 /**
  * Create a Bridge Kit adapter from the browser wallet provider
  * Uses Circle's createViemAdapterFromProvider factory function for user-controlled transactions
- * 
+ *
  * Works with RainbowKit/wagmi injected providers
  */
 async function createBridgeKitAdapter(): Promise<any> {
   // Get the EIP1193 provider from the browser window
   let provider = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
-  
+
   // For RainbowKit: Check if provider exists and has the expected methods
   if (provider) {
     console.log("Wallet provider found at window.ethereum", {
@@ -1693,8 +1744,10 @@ async function createBridgeKitAdapter(): Promise<any> {
       providerName: (provider as any).name || "unknown",
     });
   } else {
-    console.warn("No provider at window.ethereum - checking for RainbowKit/wagmi providers");
-    
+    console.warn(
+      "No provider at window.ethereum - checking for RainbowKit/wagmi providers",
+    );
+
     // Try to find wagmi-injected providers
     if ((window as any).ethereum) {
       provider = (window as any).ethereum;
@@ -1702,7 +1755,7 @@ async function createBridgeKitAdapter(): Promise<any> {
     } else {
       throw new Error(
         "No wallet provider found. Please ensure RainbowKit/MetaMask is installed and connected. " +
-        "If using RainbowKit, verify the wallet connector is properly configured."
+          "If using RainbowKit, verify the wallet connector is properly configured.",
       );
     }
   }
@@ -1710,8 +1763,8 @@ async function createBridgeKitAdapter(): Promise<any> {
   if (!provider || typeof (provider as any).request !== "function") {
     throw new Error(
       "Provider does not have EIP1193 methods. " +
-      "This may indicate RainbowKit is not properly connected. " +
-      "Please check your wallet connection in the browser."
+        "This may indicate RainbowKit is not properly connected. " +
+        "Please check your wallet connection in the browser.",
     );
   }
 
@@ -1739,14 +1792,18 @@ async function createBridgeKitAdapter(): Promise<any> {
       },
     });
 
-    console.log("Bridge adapter created successfully with extended receipt timeout");
-    return withBridgeTransactionTimeouts(withCircleChainAwareViemAdapter(adapter));
+    console.log(
+      "Bridge adapter created successfully with extended receipt timeout",
+    );
+    return withBridgeTransactionTimeouts(
+      withCircleChainAwareViemAdapter(adapter),
+    );
   } catch (error) {
     console.error("Failed to create bridge adapter:", error);
     throw new Error(
       `Bridge adapter creation failed: ${error instanceof Error ? error.message : String(error)}. ` +
-      `This may indicate the wallet provider is not compatible with Circle's Bridge Kit. ` +
-      `If using RainbowKit, ensure your wallet connector supports EIP1193.`
+        `This may indicate the wallet provider is not compatible with Circle's Bridge Kit. ` +
+        `If using RainbowKit, ensure your wallet connector supports EIP1193.`,
     );
   }
 }
@@ -1754,7 +1811,7 @@ async function createBridgeKitAdapter(): Promise<any> {
 /**
  * Create a Bridge Kit adapter from pre-configured viem clients
  * This is specifically for RainbowKit/wagmi integration
- * 
+ *
  * Usage (from a React component with wagmi hooks):
  * ```tsx
  * const publicClient = usePublicClient();
@@ -1768,11 +1825,15 @@ export async function createBridgeKitAdapterFromClients(
   chain: any,
 ): Promise<any> {
   if (!publicClient) {
-    throw new Error("Public client not available. RainbowKit may not be connected.");
+    throw new Error(
+      "Public client not available. RainbowKit may not be connected.",
+    );
   }
-  
+
   if (!walletClient) {
-    throw new Error("Wallet client not available. RainbowKit wallet may not be connected.");
+    throw new Error(
+      "Wallet client not available. RainbowKit wallet may not be connected.",
+    );
   }
 
   if (!chain) {
@@ -1781,7 +1842,9 @@ export async function createBridgeKitAdapterFromClients(
 
   const provider = getEvmRequestProvider(walletClient);
   if (!provider) {
-    throw new Error("Unable to resolve the connected wallet provider from RainbowKit.");
+    throw new Error(
+      "Unable to resolve the connected wallet provider from RainbowKit.",
+    );
   }
 
   const adapter = await createViemAdapterFromProvider({
@@ -1818,9 +1881,12 @@ export async function createBridgeKitAdapterFromClients(
   });
 
   console.log("Bridge adapter created from RainbowKit/wagmi clients", {
-    chainId: walletClient.chain?.id ?? publicClient.chain?.id ?? chain?.id ?? chain,
+    chainId:
+      walletClient.chain?.id ?? publicClient.chain?.id ?? chain?.id ?? chain,
   });
-  return withBridgeTransactionTimeouts(withCircleChainAwareViemAdapter(adapter));
+  return withBridgeTransactionTimeouts(
+    withCircleChainAwareViemAdapter(adapter),
+  );
 }
 
 /**
@@ -1837,7 +1903,9 @@ let solanaAdapterAddress: string | null = null;
  * Helper function to initialize Solana adapter from the shared wallet store
  * Returns null if a supported Solana wallet is not connected
  */
-async function initializeSolanaAdapter(chainKey: string = "solana"): Promise<any> {
+async function initializeSolanaAdapter(
+  chainKey: string = "solana",
+): Promise<any> {
   try {
     const rawProvider = getConnectedSolanaProvider();
     const connectedAddress = getConnectedSolanaAddress();
@@ -1850,14 +1918,17 @@ async function initializeSolanaAdapter(chainKey: string = "solana"): Promise<any
 
     setSolanaProviderAddress(rawProvider, address);
     const solanaRpcUrl = getSolanaBridgeRpcUrl(chainKey);
-    const provider =
-      rawProvider as Parameters<typeof createSolanaAdapterFromProvider>[0]["provider"];
+    const provider = rawProvider as Parameters<
+      typeof createSolanaAdapterFromProvider
+    >[0]["provider"];
     const adapter = await createSolanaAdapterFromProvider({
       provider,
       connection: createSolanaBridgeConnection(solanaRpcUrl),
       capabilities: {
         addressContext: "user-controlled",
-        supportedChains: [isSolanaMainnetChain(chainKey) ? Solana : SolanaDevnet],
+        supportedChains: [
+          isSolanaMainnetChain(chainKey) ? Solana : SolanaDevnet,
+        ],
       },
     });
     console.log("Solana adapter initialized successfully", {
@@ -1963,10 +2034,10 @@ function createEVMPublicClient(chainId: number, rpcUrl: string): PublicClient {
 
 /**
  * Bridge tokens from one chain to another
- * 
+ *
  * This function executes cross-chain bridge transactions using the user's browser wallet.
  * The bridge is executed client-side with your wallet's signing capability.
- * 
+ *
  * Usage:
  * const result = await bridgeTokens({
  *   fromChain: "base-sepolia",
@@ -1977,7 +2048,7 @@ function createEVMPublicClient(chainId: number, rpcUrl: string): PublicClient {
  * });
  */
 export async function bridgeTokens(
-  request: BridgeRequest
+  request: BridgeRequest,
 ): Promise<BridgeResponse> {
   const bridgeProgress: BridgeProgressSnapshot = { events: [] };
   (window as any).__lastBridgeProgress = bridgeProgress;
@@ -2000,8 +2071,10 @@ export async function bridgeTokens(
       };
     }
 
-    const fromChainConfig = SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
-    const toChainConfig = SUPPORTED_CHAINS[request.toChain as keyof typeof SUPPORTED_CHAINS];
+    const fromChainConfig =
+      SUPPORTED_CHAINS[request.fromChain as keyof typeof SUPPORTED_CHAINS];
+    const toChainConfig =
+      SUPPORTED_CHAINS[request.toChain as keyof typeof SUPPORTED_CHAINS];
 
     if (!fromChainConfig || !toChainConfig) {
       return {
@@ -2013,7 +2086,8 @@ export async function bridgeTokens(
     if (!isBridgeRouteSupported(request.fromChain, request.toChain)) {
       return {
         success: false,
-        error: "This bridge route is not supported. Source and destination must be different chains on the same network.",
+        error:
+          "This bridge route is not supported. Source and destination must be different chains on the same network.",
       };
     }
 
@@ -2069,7 +2143,10 @@ export async function bridgeTokens(
         getConnectedSolanaAddress(),
       );
 
-      if (!sourceSolanaAddress || !isValidAddress(sourceSolanaAddress, "solana")) {
+      if (
+        !sourceSolanaAddress ||
+        !isValidAddress(sourceSolanaAddress, "solana")
+      ) {
         return {
           success: false,
           error: `Solana wallet not connected. Please connect a supported Solana wallet to ${fromChainConfig.name}.`,
@@ -2139,11 +2216,11 @@ export async function bridgeTokens(
 
     // Use Circle's recommended client-side bridge with browser wallet
     const kit = await initializeCircleSDK();
-    
+
     // Get the proper chain objects from Circle's definitions
     const allTokens = getSupportedTokens();
     const tokenDef = allTokens.find(
-      (t) => t.symbol.toLowerCase() === (request.token || "USDC").toLowerCase()
+      (t) => t.symbol.toLowerCase() === (request.token || "USDC").toLowerCase(),
     );
 
     if (!tokenDef) {
@@ -2239,7 +2316,8 @@ export async function bridgeTokens(
         };
       }
 
-      if (!Number.isInteger(fromChainObj.cctp.domain) ||
+      if (
+        !Number.isInteger(fromChainObj.cctp.domain) ||
         !Number.isInteger(toChainObj.cctp.domain)
       ) {
         throw new Error(
@@ -2278,8 +2356,9 @@ export async function bridgeTokens(
       ...(customFee ? { customFee } : {}),
     };
 
-    const requiresDestinationAdapter =
-      !(useForwarder && resolvedDestinationAddress);
+    const requiresDestinationAdapter = !(
+      useForwarder && resolvedDestinationAddress
+    );
     if (requiresDestinationAdapter) {
       if (isSolanaBridgeChain(request.toChain)) {
         toAdapter ??= await ensureSolanaBridgeAdapter(request.toChain);
@@ -2294,13 +2373,14 @@ export async function bridgeTokens(
         if (!toAdapter) {
           return {
             success: false,
-            error: "Destination adapter not initialized. Please ensure required wallet is connected.",
+            error:
+              "Destination adapter not initialized. Please ensure required wallet is connected.",
           };
         }
       }
     }
 
-    console.log("Executing bridge with adapter:", { 
+    console.log("Executing bridge with adapter:", {
       fromChain: (fromChainObj as any).name,
       toChain: (toChainObj as any).name,
       amount: request.amount,
@@ -2313,7 +2393,10 @@ export async function bridgeTokens(
         BRIDGE_CUSTOM_FEE_AMOUNT_USDC,
       );
 
-      if (Number.isFinite(configuredCustomFeeAmount) && configuredCustomFeeAmount > 0) {
+      if (
+        Number.isFinite(configuredCustomFeeAmount) &&
+        configuredCustomFeeAmount > 0
+      ) {
         console.warn(
           "Custom bridge fee is configured but disabled for this source chain because the recipient is missing or invalid.",
           { sourceChain: request.fromChain },
@@ -2328,13 +2411,15 @@ export async function bridgeTokens(
       adapterReady: !!fromAdapter,
       walletConnected: !!fromAdapter,
     });
-    
+
     const startTime = Date.now();
     const bridgeEventHandler = (event: any) => {
-      const step =
-        typeof event?.method === "string" ? event.method : "unknown";
+      const step = typeof event?.method === "string" ? event.method : "unknown";
       const values =
-        event && typeof event === "object" && event.values && typeof event.values === "object"
+        event &&
+        typeof event === "object" &&
+        event.values &&
+        typeof event.values === "object"
           ? event.values
           : {};
       const txHash =
@@ -2416,8 +2501,8 @@ export async function bridgeTokens(
                   new Error(
                     `${actionLabel} timeout: Execution exceeded ${
                       BRIDGE_EXECUTION_TIMEOUT_MS / 60000
-                    } minutes. The transaction may still be pending on-chain. Check your wallet or the explorer for updates.`
-                  )
+                    } minutes. The transaction may still be pending on-chain. Check your wallet or the explorer for updates.`,
+                  ),
                 );
               }, BRIDGE_EXECUTION_TIMEOUT_MS);
             }),
@@ -2430,7 +2515,7 @@ export async function bridgeTokens(
       };
 
       result = await executeBridgeAttemptWithTimeout("Bridge", () =>
-        kit.bridge(buildBridgeParams())
+        kit.bridge(buildBridgeParams()),
       );
 
       let retryableFailedStep = getRetryableFailedBridgeStep(result);
@@ -2471,9 +2556,14 @@ export async function bridgeTokens(
     console.log(`Bridge execution completed in ${elapsedTime}ms`);
     console.log("Bridge transaction result:", result);
     console.log("Result type:", typeof result);
-    console.log("Result keys:", result && typeof result === "object" ? Object.keys(result as object) : "null/undefined");
+    console.log(
+      "Result keys:",
+      result && typeof result === "object"
+        ? Object.keys(result as object)
+        : "null/undefined",
+    );
     console.log("Result state:", (result as any)?.state);
-    
+
     // Don't try to stringify the whole result - it has BigInts
     // Instead log the steps array length and details
     if ((result as any)?.steps && Array.isArray((result as any).steps)) {
@@ -2484,7 +2574,8 @@ export async function bridgeTokens(
           state: step.state,
         };
         if (step.txHash) stepDetails.txHash = step.txHash;
-        if (step.forwarded !== undefined) stepDetails.forwarded = step.forwarded;
+        if (step.forwarded !== undefined)
+          stepDetails.forwarded = step.forwarded;
         if (step.error) stepDetails.error = String(step.error);
         if (step.error) {
           stepDetails.errorDiagnostics = getBridgeErrorDiagnostics(step.error);
@@ -2492,7 +2583,7 @@ export async function bridgeTokens(
         console.log(`Step ${index} (${step.name}):`, stepDetails);
       });
     }
-    
+
     // Store result globally for easy copying (without JSON.stringify)
     (window as any).__lastBridgeResult = result;
     console.log("Bridge result stored in window.__lastBridgeResult");
@@ -2563,28 +2654,40 @@ export async function bridgeTokens(
           resultObj.steps.some((step: any) => step?.forwarded === true);
 
         // First check for explicit errors
-        const failedStep = resultObj.steps.find((step: any) => step.state === "error");
+        const failedStep = resultObj.steps.find(
+          (step: any) => step.state === "error",
+        );
         if (failedStep?.error) {
           const stepError = failedStep.error;
           // Extract meaningful error message
           if (typeof stepError === "object") {
-            errorMessage = (stepError as any).message || (stepError as any).details || String(stepError);
+            errorMessage =
+              (stepError as any).message ||
+              (stepError as any).details ||
+              String(stepError);
           } else {
             errorMessage = String(stepError);
           }
         }
-        
+
         // Check for stuck pending steps (especially burn and mint which are longer operations)
-        const pendingSteps = resultObj.steps.filter((step: any) => step.state === "pending");
+        const pendingSteps = resultObj.steps.filter(
+          (step: any) => step.state === "pending",
+        );
         if (pendingSteps.length > 0) {
           const stuckSteps = pendingSteps.map((s: any) => s.name).join(", ");
-          
+
           // If we have multiple pending steps or non-approve pending steps, this likely means they're stuck
-          if (pendingSteps.length > 1 || (pendingSteps[0]?.name !== "approve" && resultObj.state !== "pending")) {
-            errorMessage = errorMessage || 
-              `Bridge appeared to complete but steps are still pending: ${stuckSteps}. ` + 
-              `This may indicate the transaction is waiting for on-chain settlement. ` +
-              `Check the explorer or try again in a few moments.`;
+          if (
+            pendingSteps.length > 1 ||
+            (pendingSteps[0]?.name !== "approve" &&
+              resultObj.state !== "pending")
+          ) {
+            errorMessage =
+              errorMessage ||
+              `Bridge appeared to complete but steps are still pending: ${stuckSteps}. ` +
+                `This may indicate the transaction is waiting for on-chain settlement. ` +
+                `Check the explorer or try again in a few moments.`;
           }
         }
 
@@ -2593,13 +2696,13 @@ export async function bridgeTokens(
           .find(
             (step: any) =>
               ACTIONABLE_PENDING_BRIDGE_STEPS.has(step.name) &&
-              typeof step.txHash === "string"
+              typeof step.txHash === "string",
           );
 
         const actionableFailedStep = resultObj.steps.find(
           (step: any) =>
             step.state === "error" &&
-            ACTIONABLE_PENDING_BRIDGE_STEPS.has(step.name)
+            ACTIONABLE_PENDING_BRIDGE_STEPS.has(step.name),
         );
 
         const actionableFailedStepMessage =
@@ -2627,7 +2730,8 @@ export async function bridgeTokens(
       // Circle's response has a 'state' field: 'success', 'pending', 'error', or 'failed'
       // But also check if any step failed (steps might show errors even if state is 'success')
       if (resultObj.state === "error" || resultObj.state === "failed") {
-        errorMessage = errorMessage || resultObj.error || "Bridge transaction failed";
+        errorMessage =
+          errorMessage || resultObj.error || "Bridge transaction failed";
       } else if (resultObj.state === "success" && errorMessage) {
         // Steps had errors even though state says success - treat as failure
         errorMessage = `Step failed: ${errorMessage}`;
@@ -2677,11 +2781,12 @@ export async function bridgeTokens(
     } else if (isPending) {
       // Bridge is in pending state - it's processing but not yet complete
       // This is normal for burn/mint steps which require on-chain settlement
-      const pendingSteps = (result as any)?.steps
-        ?.filter((s: any) => s.state === "pending")
-        .map((s: any) => s.name)
-        .join(", ") || "settlement";
-      
+      const pendingSteps =
+        (result as any)?.steps
+          ?.filter((s: any) => s.state === "pending")
+          .map((s: any) => s.name)
+          .join(", ") || "settlement";
+
       return {
         success: true,
         status: "pending",
@@ -2694,12 +2799,17 @@ export async function bridgeTokens(
     } else {
       return {
         success: false,
-        error: errorMessage || `Bridge failed with state: ${(result as any)?.state || "unknown"}`,
+        error:
+          errorMessage ||
+          `Bridge failed with state: ${(result as any)?.state || "unknown"}`,
       };
     }
   } catch (error) {
     console.error("Bridge error:", error);
-    console.error("Bridge error diagnostics:", getBridgeErrorDiagnostics(error));
+    console.error(
+      "Bridge error diagnostics:",
+      getBridgeErrorDiagnostics(error),
+    );
 
     const rawErrorMessage = getBridgeErrorMessage(error);
 
@@ -2724,7 +2834,7 @@ export async function bridgeTokens(
           error: rawErrorMessage,
           lastStep: bridgeProgress.lastStep,
           txHash: bridgeProgress.lastTxHash,
-        }
+        },
       );
 
       return {
@@ -2754,11 +2864,13 @@ export async function bridgeTokens(
       rawErrorMessage.toLowerCase().includes("user rejected") ||
       rawErrorMessage.toLowerCase().includes("rejected")
     ) {
-      errorMessage = "Transaction rejected by wallet. Please check your wallet and try again.";
+      errorMessage =
+        "Transaction rejected by wallet. Please check your wallet and try again.";
     } else if (rawErrorMessage.toLowerCase().includes("insufficient")) {
-      errorMessage = "Insufficient balance or insufficient gas for bridge transaction.";
+      errorMessage =
+        "Insufficient balance or insufficient gas for bridge transaction.";
     }
-    
+
     console.error("Final bridge error message:", errorMessage);
     return {
       success: false,
@@ -2766,7 +2878,10 @@ export async function bridgeTokens(
     };
   } finally {
     if (shouldTrackEvmWalletChain) {
-      await restoreActiveWalletChain(initialWalletChainId, request.walletClient);
+      await restoreActiveWalletChain(
+        initialWalletChainId,
+        request.walletClient,
+      );
     }
   }
 }
@@ -2776,9 +2891,10 @@ export async function bridgeTokens(
  * Can be used to initialize Bridge Kit ViemAdapter
  */
 export function getViemClient(chainId: string): PublicClient | null {
-  const chainConfig = SUPPORTED_CHAINS[chainId as keyof typeof SUPPORTED_CHAINS];
+  const chainConfig =
+    SUPPORTED_CHAINS[chainId as keyof typeof SUPPORTED_CHAINS];
   if (!chainConfig || isSolanaBridgeChain(chainId)) return null;
-  
+
   return createEVMPublicClient(chainConfig.chainId, chainConfig.rpcUrl);
 }
 
@@ -2823,7 +2939,7 @@ export function getUnavailableCircleRouteError(
 
 export function isBridgeRouteSupported(
   fromChain: string,
-  toChain: string
+  toChain: string,
 ): boolean {
   const fromSupported = fromChain in SUPPORTED_CHAINS;
   const toSupported = toChain in SUPPORTED_CHAINS;
@@ -2914,10 +3030,7 @@ export async function getBridgeFees(
       fromChainObj.isTestnet,
     );
     const circleFee = Number(
-      formatUnits(
-        calculateFastForwardingMaxFee(amountInMinorUnits, fees),
-        6,
-      ),
+      formatUnits(calculateFastForwardingMaxFee(amountInMinorUnits, fees), 6),
     );
 
     return Number.isFinite(circleFee)
@@ -2971,11 +3084,11 @@ export function getSupportedTokens(filterByChain?: string): SupportedToken[] {
  */
 export function getTokenAddressForChain(
   tokenSymbol: string,
-  chainId: string
+  chainId: string,
 ): string | null {
   const tokens = getSupportedTokens();
   const token = tokens.find((t) => t.symbol === tokenSymbol);
-  
+
   if (!token) return null;
   return token.chainAddresses[chainId] || null;
 }
@@ -2995,10 +3108,7 @@ export function getUSDCToken(): SupportedToken {
 /**
  * Estimate bridge time between chains
  */
-export function estimateBridgeTime(
-  fromChain: string,
-  toChain: string
-): string {
+export function estimateBridgeTime(fromChain: string, toChain: string): string {
   // Different chains have different settlement times
   const timeMap: Record<string, string> = {
     "arc-testnet": "1-2 minutes",
@@ -3021,7 +3131,10 @@ export function estimateBridgeTime(
 /**
  * Format bridge amount to proper decimal places
  */
-export function formatBridgeAmount(amount: string, decimals: number = 6): string {
+export function formatBridgeAmount(
+  amount: string,
+  decimals: number = 6,
+): string {
   const num = parseFloat(amount);
   if (isNaN(num)) return "0.00";
   return num.toFixed(decimals);
@@ -3036,7 +3149,10 @@ export function normalizeWalletAddress(address: string): string {
 /**
  * Validate wallet address format based on chain
  */
-export function isValidAddress(address: string, chainType: "evm" | "solana"): boolean {
+export function isValidAddress(
+  address: string,
+  chainType: "evm" | "solana",
+): boolean {
   const normalizedAddress = normalizeWalletAddress(address);
 
   if (chainType === "evm") {
@@ -3044,7 +3160,10 @@ export function isValidAddress(address: string, chainType: "evm" | "solana"): bo
       return false;
     }
 
-    return normalizedAddress.toLowerCase() !== "0x0000000000000000000000000000000000000000";
+    return (
+      normalizedAddress.toLowerCase() !==
+      "0x0000000000000000000000000000000000000000"
+    );
   } else if (chainType === "solana") {
     // Solana address: base58 (no 0, O, I, l), uppercase and lowercase, 32-44 characters
     return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(normalizedAddress);

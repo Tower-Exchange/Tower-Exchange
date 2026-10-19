@@ -1,6 +1,6 @@
 /**
  * useBridge Hook
- * 
+ *
  * Manages bridge state and execution for the bridge component
  */
 
@@ -32,6 +32,7 @@ export interface BridgeState {
   estimatedFee: string;
   estimatedCircleFee: string;
   estimatedPlatformFee: string;
+  minimumBridgeAmount: string;
   estimatedSourceDebit: string;
   estimatedReceivedAmount: string;
   estimatedTime: string;
@@ -80,10 +81,10 @@ export function useBridge(): UseBridgeResult {
     estimatedSourceDebit: "0.00",
     estimatedReceivedAmount: "0.00",
     estimatedTime: "2-5 minutes",
+    minimumBridgeAmount: "1.00",
     customFeeEnabled: false,
   });
-  const forwardedBridgePollTimerRef =
-    useRef<number | null>(null);
+  const forwardedBridgePollTimerRef = useRef<number | null>(null);
   const activeForwardedBridgePollRef = useRef<{
     burnTxHash: string;
     startedAt: number;
@@ -102,7 +103,11 @@ export function useBridge(): UseBridgeResult {
     async (
       pendingRequest: Pick<
         BridgeRequest,
-        "fromChain" | "sourceAddress" | "publicClient" | "walletClient" | "chain"
+        | "fromChain"
+        | "sourceAddress"
+        | "publicClient"
+        | "walletClient"
+        | "chain"
       >,
       burnTxHash: string,
       startedAt: number,
@@ -155,7 +160,11 @@ export function useBridge(): UseBridgeResult {
       }
 
       forwardedBridgePollTimerRef.current = window.setTimeout(() => {
-        void pollForwardedBridgeCompletion(pendingRequest, burnTxHash, startedAt);
+        void pollForwardedBridgeCompletion(
+          pendingRequest,
+          burnTxHash,
+          startedAt,
+        );
       }, FORWARDED_BRIDGE_POLL_INTERVAL_MS);
     },
     [clearForwardedBridgePolling],
@@ -180,7 +189,8 @@ export function useBridge(): UseBridgeResult {
     ): string | null => {
       if (!fromChain) return "Please select a source chain";
       if (!toChain) return "Please select a destination chain";
-      if (!amount || parseFloat(amount) <= 0) return "Please enter a valid amount";
+      if (!amount || parseFloat(amount) <= 0)
+        return "Please enter a valid amount";
       if (!toAddress) return "Please enter a destination address";
 
       // Validate route is supported
@@ -198,27 +208,38 @@ export function useBridge(): UseBridgeResult {
       }
 
       // Validate destination address
-      const toChainConfig = SUPPORTED_CHAINS[toChain as keyof typeof SUPPORTED_CHAINS];
+      const toChainConfig =
+        SUPPORTED_CHAINS[toChain as keyof typeof SUPPORTED_CHAINS];
       const chainType = isSolanaBridgeChain(toChain) ? "solana" : "evm";
-      
+
       if (!isValidAddress(toAddress, chainType)) {
         return `Invalid ${toChainConfig?.name} address format`;
       }
 
       return null;
     },
-    []
+    [],
   );
 
   /**
    * Calculate bridge fees and estimated time
    */
   const calculateBridgeDetails = useCallback(
-    async (fromChain: string, toChain: string, amount: string, tokenSymbol: string = "USDC") => {
+    async (
+      fromChain: string,
+      toChain: string,
+      amount: string,
+      tokenSymbol: string = "USDC",
+    ) => {
       try {
         setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-        const fees = await getBridgeFees(fromChain, toChain, amount, tokenSymbol);
+        const fees = await getBridgeFees(
+          fromChain,
+          toChain,
+          amount,
+          tokenSymbol,
+        );
         const time = estimateBridgeTime(fromChain, toChain);
 
         setState((prev) => ({
@@ -231,10 +252,13 @@ export function useBridge(): UseBridgeResult {
           estimatedReceivedAmount: fees.amountReceived,
           estimatedTime: time,
           customFeeEnabled: fees.customFeeEnabled,
+          minimumBridgeAmount: fees.minimumBridgeAmount,
         }));
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to calculate bridge details";
+          error instanceof Error
+            ? error.message
+            : "Failed to calculate bridge details";
         setState((prev) => ({
           ...prev,
           isLoading: false,
@@ -242,7 +266,7 @@ export function useBridge(): UseBridgeResult {
         }));
       }
     },
-    []
+    [],
   );
 
   /**
@@ -386,7 +410,7 @@ export function useBridge(): UseBridgeResult {
       publicClient,
       validateBridgeInputs,
       walletClient,
-    ]
+    ],
   );
 
   /**
@@ -405,6 +429,7 @@ export function useBridge(): UseBridgeResult {
       estimatedSourceDebit: "0.00",
       estimatedReceivedAmount: "0.00",
       estimatedTime: "2-5 minutes",
+      minimumBridgeAmount: "1.00",
       customFeeEnabled: false,
       status: undefined,
       message: undefined,
