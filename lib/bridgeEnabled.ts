@@ -22,6 +22,9 @@ export const isSolanaBridgeEnabled = () =>
 export const isEvmBridgeEnabled = () =>
   parseBooleanEnv(process.env.NEXT_PUBLIC_EVM_BRIDGE_ENABLED) ?? false;
 
+export const isUnifiedDepositEnabled = () =>
+  parseBooleanEnv(process.env.NEXT_PUBLIC_UNIFIED_DEPOSIT_ENABLED) ?? false;
+
 export const isBridgeChainEnabled = (chainId?: string | null) =>
   isSolanaBridgeChain(chainId) ? isSolanaBridgeEnabled() : isEvmBridgeEnabled();
 

@@ -17,11 +17,11 @@
     "verify:arc-mainnet": "npm run verify:arc-mainnet --prefix contracts && npm run verify:arc-mainnet --prefix Tower-AMM"
   },
   "dependencies": {
-    "@circle-fin/adapter-solana": "^1.6.2",
+    "@circle-fin/adapter-solana": "^1.7.5",
     "@circle-fin/adapter-solana-kit": "^1.5.2",
-    "@circle-fin/adapter-viem-v2": "^1.13.0",
-    "@circle-fin/app-kit": "^1.9.0",
-    "@circle-fin/bridge-kit": "^1.12.0",
+    "@circle-fin/adapter-viem-v2": "^1.19.1",
+    "@circle-fin/app-kit": "^1.17.0",
+    "@circle-fin/bridge-kit": "^1.15.3",
     "@dynamic-labs/ethereum": "^4.77.3",
     "@dynamic-labs/sdk-react-core": "^4.77.3",
     "@dzapio/sdk": "^2.0.44",

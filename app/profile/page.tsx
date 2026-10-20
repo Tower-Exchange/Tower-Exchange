@@ -7,6 +7,8 @@ import TokenTicker from "@/components/TokenTicker";
 import Positions from "@/components/Positions";
 import Activities from "@/components/Activities";
 import Badges from "@/components/Badges";
+import UnifiedDeposit from "@/components/UnifiedDeposit";
+import { isUnifiedDepositEnabled } from "@/lib/bridgeEnabled";
 import {
   getArcNetworkHex,
   getArcNetworkLabel,
@@ -34,12 +36,15 @@ import {
   };
 };
 
-type ProfileTab = "positions" | "activities" | "badges";
+type ProfileTab = "positions" | "activities" | "badges" | "unified";
 
 const profileTabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "positions", label: "Positions" },
   { id: "activities", label: "Activities" },
   { id: "badges", label: "Badges" },
+  ...(isUnifiedDepositEnabled()
+    ? [{ id: "unified" as const, label: "Unified Balance" }]
+    : []),
 ];
 
 const ProfileContent = () => {
@@ -99,7 +104,8 @@ const ProfileContent = () => {
     if (
       requestedTab === "positions" ||
       requestedTab === "activities" ||
-      requestedTab === "badges"
+      requestedTab === "badges" ||
+      (requestedTab === "unified" && isUnifiedDepositEnabled())
     ) {
       setActiveTab(requestedTab);
     }
@@ -377,6 +383,11 @@ const ProfileContent = () => {
               isWalletConnected={authenticated}
               walletAddress={user?.wallet?.address || null}
             />
+          )}
+          {activeTab === "unified" && (
+            <div className="w-full max-w-md">
+              <UnifiedDeposit />
+            </div>
           )}
           {activeTab === "badges" && (
             <Badges
