@@ -87,6 +87,17 @@ export default function PromotionalSidebar() {
     // },
     {
       id: "conquest-trade",
+      heroImage: "/assets/tradeonclaude.svg",
+      imageWidthClass: "w-[125px]",
+      title: "Trade on Claude AI",
+      description: "Connect Tower’s MCP to your personal AI agent and start trading stablecoins seamlessly.",
+      ctaText: "Try it Now",
+      action: () => {
+        router.push("/mcp");
+      }
+    },
+    {
+      id: "conquest-trade",
       heroImage: "/assets/conquests.svg",
       imageWidthClass: "w-[125px]",
       title: "Introducing Conquests",
