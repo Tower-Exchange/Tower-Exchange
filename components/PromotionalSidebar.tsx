@@ -93,7 +93,7 @@ export default function PromotionalSidebar() {
       description: "Connect Tower’s MCP to your personal AI agent and start trading stablecoins seamlessly.",
       ctaText: "Try it Now",
       action: () => {
-        router.push("/mcp");
+        window.open("https://docs.tower.exchange/mcp", "_blank", "noopener,noreferrer");
       }
     },
     {
