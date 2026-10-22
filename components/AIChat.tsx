@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useState, useEffect, useRef, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import {
   ArrowUp,
@@ -1867,7 +1867,7 @@ export const AIChat = () => {
             className="chat-scrollbar absolute inset-0 overflow-y-scroll overscroll-contain pr-1"
           >
             {hasConversationContent ? (
-              <div className="mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-4 px-4 pb-[calc(env(safe-area-inset-bottom)+7.5rem)] pt-5 sm:px-6 sm:pb-32 sm:pt-7 lg:px-7">
+              <div className="mx-auto flex min-h-full w-full max-w-[46rem] flex-col gap-4 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+7.5rem)] pt-5 sm:px-6 sm:pb-32 sm:pt-7 lg:px-7">
                 {messages.map((msg, index) => (
                   <Fragment key={msg.id}>
                     {renderConfirmationRowsAtIndex(index)}
@@ -2122,28 +2122,32 @@ export const AIChat = () => {
               </div>
             )}
           </div>
-
-          {hasMessages && (!isAtBottom || !isAtTop) && (
-            <motion.button
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              onClick={isAtBottom ? scrollToTop : scrollToBottom}
-              className="absolute bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] left-1/2 z-10 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card/95 text-foreground shadow-[0_12px_32px_rgba(0,0,0,0.32)] backdrop-blur-xl transition-colors hover:border-border hover:bg-accent sm:bottom-28"
-              aria-label={isAtBottom ? "Scroll to top" : "Scroll to bottom"}
-            >
-              {isAtBottom ? <ArrowUp size={16} /> : <ArrowDown size={16} />}
-            </motion.button>
-          )}
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background via-background/75 to-transparent sm:h-36 sm:block" />
 
-        <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 sm:px-6 sm:pb-6 sm:pt-8 lg:px-7">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-3 sm:px-6 sm:pb-6 sm:pt-8 lg:px-7">
           <div className="mx-auto w-full max-w-[52rem]">
-            <div className="mx-auto w-full max-w-none sm:max-w-[44rem]">
+            <div className="relative mx-auto w-full max-w-none sm:max-w-[44rem]">
+              <AnimatePresence>
+                {hasMessages && (!isAtBottom || !isAtTop) && (
+                  <motion.button
+                    type="button"
+                    initial={{ opacity: 0, y: 8, scale: 0.9, x: "-50%" }}
+                    animate={{ opacity: 1, y: 0, scale: 1, x: "-50%" }}
+                    exit={{ opacity: 0, y: 8, scale: 0.9, x: "-50%" }}
+                    transition={{ duration: 0.15 }}
+                    onClick={isAtBottom ? scrollToTop : scrollToBottom}
+                    className="pointer-events-auto absolute -top-11 sm:-top-12 left-1/2 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/95 text-foreground shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-xl transition-colors hover:border-border hover:bg-accent"
+                    aria-label={isAtBottom ? "Scroll to top" : "Scroll to bottom"}
+                  >
+                    {isAtBottom ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+                  </motion.button>
+                )}
+              </AnimatePresence>
+
               <div
-                className="tower-chat-input-shell relative rounded-[20px] border border-border bg-secondary px-3.5 py-2 shadow-[0_16px_44px_rgba(0,0,0,0.08)] focus-within:border-primary/40 focus-within:outline-none focus-within:ring-0 sm:rounded-[22px] sm:px-4 sm:py-2.5 dark:shadow-[0_16px_44px_rgba(0,0,0,0.36)]"
+                className="tower-chat-input-shell pointer-events-auto relative rounded-[20px] border border-border bg-secondary px-3.5 py-2 shadow-[0_16px_44px_rgba(0,0,0,0.08)] focus-within:border-primary/40 focus-within:outline-none focus-within:ring-0 sm:rounded-[22px] sm:px-4 sm:py-2.5 dark:shadow-[0_16px_44px_rgba(0,0,0,0.36)]"
                 style={{
                   WebkitTapHighlightColor: "transparent",
                 }}
