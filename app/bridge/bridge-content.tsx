@@ -34,6 +34,7 @@ import {
   getBridgeTokenAddress,
   getBridgeTransactionUrl,
   getBridgeNetworkMode,
+  isNativeArcUsdcChain,
   isSolanaBridgeChain,
   remapChainForNetwork,
 } from "@/lib/bridgeNetworks";
@@ -260,6 +261,7 @@ function EnabledBridgePageContent({
     useTowerNetworkMode();
   const walletBalanceRequestIdRef = useRef(0);
   const toChainBalanceRequestIdRef = useRef(0);
+  const sourceGasRequestIdRef = useRef(0);
   const [slippageTolerance, setSlippageTolerance] = useState(0.5);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isActivityOpen, setIsActivityOpen] = useState(false);
@@ -295,6 +297,11 @@ function EnabledBridgePageContent({
   const [walletBalanceKey, setWalletBalanceKey] = useState<string | null>(null);
   const [toChainBalance, setToChainBalance] = useState("0.00");
   const [sourceGasBalance, setSourceGasBalance] = useState("0.00");
+  // "0.00" alone can't tell "unknown" from "empty", so track whether the
+  // source gas balance was actually read before warning about it.
+  const [sourceGasStatus, setSourceGasStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
   const [destinationGasBalance, setDestinationGasBalance] = useState("0.00");
   const [recentAddresses, setRecentAddresses] = useState<string[]>([]);
   const swapNavigationStartedRef = useRef(false);
@@ -731,10 +738,15 @@ function EnabledBridgePageContent({
   );
 
   const fetchBridgeGasBalances = useCallback(async () => {
+    const requestId = ++sourceGasRequestIdRef.current;
+    const isCurrentSourceRequest = () =>
+      requestId === sourceGasRequestIdRef.current;
+
     try {
       if (fromChainId) {
         if (isSolanaBridgeChain(fromChainId) && !isSolanaConnected) {
           setSourceGasBalance("0.00");
+          setSourceGasStatus("idle");
         } else {
           const sourceAddress = getBridgeAddressForChain(
             fromChainId,
@@ -742,17 +754,23 @@ function EnabledBridgePageContent({
           );
 
           if (sourceAddress) {
+            setSourceGasStatus("loading");
             const balance = await fetchNativeGasBalance(
               fromChainId,
               sourceAddress,
             );
-            setSourceGasBalance(balance);
+            if (isCurrentSourceRequest()) {
+              setSourceGasBalance(balance);
+              setSourceGasStatus("ready");
+            }
           } else {
             setSourceGasBalance("0.00");
+            setSourceGasStatus("idle");
           }
         }
       } else {
         setSourceGasBalance("0.00");
+        setSourceGasStatus("idle");
       }
 
       if (toChainId) {
@@ -775,6 +793,9 @@ function EnabledBridgePageContent({
       }
     } catch (error) {
       console.error("Error fetching bridge gas balances:", error);
+      if (isCurrentSourceRequest()) {
+        setSourceGasStatus("error");
+      }
       setSourceGasBalance("0.00");
       setDestinationGasBalance("0.00");
     }
@@ -1212,6 +1233,21 @@ function EnabledBridgePageContent({
   const toChain = toChainId
     ? (BRIDGE_CHAINS.find((c) => c.id === toChainId) ?? null)
     : null;
+  const sourceGasTokenSymbol = fromChainId
+    ? (SUPPORTED_CHAINS[fromChainId as keyof typeof SUPPORTED_CHAINS]
+        ?.nativeTokenSymbol ?? null)
+    : null;
+  // Advisory only: warns before submit when the source wallet holds no native
+  // gas. Never blocks the bridge, and stays silent while the balance is
+  // unknown. Arc and Solana are skipped (Arc pays gas in USDC).
+  const isSourceGasMissing =
+    Boolean(sourceBridgeAddress) &&
+    Boolean(sourceGasTokenSymbol) &&
+    !isSolanaBridgeChain(fromChainId) &&
+    !isNativeArcUsdcChain(fromChainId) &&
+    sourceGasStatus === "ready" &&
+    Number.parseFloat(fromAmount) > 0 &&
+    Number.parseFloat(sourceGasBalance) <= 0.000001;
   const requiresManualDestinationAddress =
     Boolean(toChainId) &&
     (isSolanaBridgeChain(toChainId) || isSolanaBridgeChain(fromChainId));
@@ -1809,6 +1845,17 @@ function EnabledBridgePageContent({
                   </span>
                 </div>
               </motion.div>
+            )}
+
+            {isSourceGasMissing && (
+              <p
+                role="status"
+                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-400"
+              >
+                Your wallet has no {sourceGasTokenSymbol} on{" "}
+                {fromChain?.name ?? "the source chain"}. You need{" "}
+                {sourceGasTokenSymbol} to pay network gas for this bridge.
+              </p>
             )}
 
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
