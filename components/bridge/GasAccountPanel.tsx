@@ -172,7 +172,7 @@ export default function GasAccountPanel({
       {enabled && (
         <div className="mt-3 space-y-2 border-t border-border pt-3">
           <div className="flex items-center justify-between gap-2 rounded-lg bg-[#0f1011] px-3 py-2">
-            <span className="break-all font-mono text-xs text-foreground">
+            <span className="break-all font-sora text-xs text-foreground">
               {address ?? "Loading…"}
             </span>
             <button
