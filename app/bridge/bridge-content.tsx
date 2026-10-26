@@ -20,8 +20,12 @@ import {
   Layers,
 } from "lucide-react";
 import { useWalletClient } from "wagmi";
+import { formatUnits } from "viem";
 import SettingsModal from "@/components/SettingsModal";
+import GasAccountPanel from "@/components/bridge/GasAccountPanel";
 import useBridge from "@/lib/hooks/useBridge";
+import useGasAccount from "@/lib/hooks/useGasAccount";
+import { GAS_ACCOUNT_GAS_BUFFER, USDC_DECIMALS } from "@/lib/paymaster/config";
 import {
   SUPPORTED_CHAINS,
   ensureWalletOnBridgeChain,
@@ -256,6 +260,22 @@ function EnabledBridgePageContent({
   const [toToken, setToToken] = useState<BridgeToken | null>(null);
   const [fromChainId, setFromChainId] = useState<string | null>(null);
   const [toChainId, setToChainId] = useState<string | null>(null);
+  const gasAccount = useGasAccount({
+    ownerAddress: user?.wallet?.address,
+    chainKey: fromChainId,
+  });
+  // the Gas Account only works with USDC
+  const isGasAccountToken = (fromToken?.symbol ?? "USDC") === "USDC";
+  const isGasAccountMode = gasAccount.enabled && isGasAccountToken;
+  // empty until the Gas Account address resolves, so the wallet balance never
+  // shows in its place
+  const sourceWalletAddress = isGasAccountMode
+    ? (gasAccount.address ?? "")
+    : user?.wallet?.address;
+  const refreshGasAccount = gasAccount.refresh;
+  const gasAccountReserveAmount = isGasAccountMode
+    ? Number(formatUnits(GAS_ACCOUNT_GAS_BUFFER, USDC_DECIMALS))
+    : 0;
   const { mode: networkMode, isReady: isNetworkModeReady } =
     useTowerNetworkMode();
   const walletBalanceRequestIdRef = useRef(0);
@@ -546,7 +566,7 @@ function EnabledBridgePageContent({
 
     const sourceAddress = getBridgeAddressForChain(
       fromChainId,
-      user?.wallet?.address,
+      sourceWalletAddress,
     );
 
     if (!sourceAddress) {
@@ -630,7 +650,7 @@ function EnabledBridgePageContent({
     getBridgeAddressForChain,
     isNetworkModeReady,
     isSolanaConnected,
-    user?.wallet?.address,
+    sourceWalletAddress,
     fromChainId,
     fromToken,
   ]);
@@ -840,7 +860,9 @@ function EnabledBridgePageContent({
     const platformFee = Number.parseFloat(bridgeHook.estimatedPlatformFee);
     const maxTransferableAmount = Number.isFinite(availableBalance)
       ? Math.max(
-          availableBalance - (Number.isFinite(platformFee) ? platformFee : 0),
+          availableBalance -
+            (Number.isFinite(platformFee) ? platformFee : 0) -
+            gasAccountReserveAmount,
           0,
         )
       : 0;
@@ -855,7 +877,9 @@ function EnabledBridgePageContent({
     const platformFee = Number.parseFloat(bridgeHook.estimatedPlatformFee);
     const maxTransferableAmount = Number.isFinite(availableBalance)
       ? Math.max(
-          availableBalance - (Number.isFinite(platformFee) ? platformFee : 0),
+          availableBalance -
+            (Number.isFinite(platformFee) ? platformFee : 0) -
+            gasAccountReserveAmount,
           0,
         )
       : 0;
@@ -932,9 +956,13 @@ function EnabledBridgePageContent({
       return;
     }
 
+    if (isGasAccountMode && !gasAccount.address) {
+      return;
+    }
+
     const sourceAddress = getBridgeAddressForChain(
       fromChainId,
-      user?.wallet?.address,
+      sourceWalletAddress,
     );
     const destinationAddress = getDestinationBridgeAddress(
       toChainId,
@@ -945,7 +973,9 @@ function EnabledBridgePageContent({
     const platformFee = Number.parseFloat(bridgeHook.estimatedPlatformFee);
     const requiredSourceBalance =
       Number.isFinite(requestedAmount) && requestedAmount > 0
-        ? requestedAmount + (Number.isFinite(platformFee) ? platformFee : 0)
+        ? requestedAmount +
+          (Number.isFinite(platformFee) ? platformFee : 0) +
+          gasAccountReserveAmount
         : 0;
     if (
       sourceAddress &&
@@ -976,7 +1006,11 @@ function EnabledBridgePageContent({
       amount: fromAmount,
       token: fromToken?.symbol || "USDC",
       toAddress: destinationAddress,
-      sourceAddress: sourceAddress || user?.wallet?.address,
+      // only used to resume a pending bridge, which uses the wallet's adapter
+      sourceAddress: isGasAccountMode
+        ? user?.wallet?.address
+        : sourceAddress || user?.wallet?.address,
+      ...(isGasAccountMode ? { gasMode: "usdc-paymaster" as const } : {}),
       onProgress: (progress) => {
         const progressStep =
           getBridgeStepFromProgress(progress.lastStep) ||
@@ -1085,6 +1119,7 @@ function EnabledBridgePageContent({
           setBridgeStepsModalOpen(false);
           fetchWalletBalance();
           fetchToChainBalance();
+          refreshGasAccount();
         }, BRIDGE_SUCCESS_MODAL_DURATION_MS);
       } else {
         setTimeout(() => {
@@ -1109,6 +1144,11 @@ function EnabledBridgePageContent({
     openSolanaConnectModal,
     solanaAddress,
     walletClient,
+    isGasAccountMode,
+    gasAccount.address,
+    sourceWalletAddress,
+    gasAccountReserveAmount,
+    refreshGasAccount,
   ]);
 
   useEffect(() => {
@@ -1132,6 +1172,7 @@ function EnabledBridgePageContent({
       setShowSuccessModal(true);
       void fetchWalletBalance();
       void fetchToChainBalance();
+      refreshGasAccount();
 
       if (bridgeCompletionResetTimeoutRef.current) {
         window.clearTimeout(bridgeCompletionResetTimeoutRef.current);
@@ -1147,7 +1188,7 @@ function EnabledBridgePageContent({
     }
 
     previousBridgeStatusRef.current = bridgeHook.status;
-  }, [bridgeHook, fetchToChainBalance, fetchWalletBalance]);
+  }, [bridgeHook, fetchToChainBalance, fetchWalletBalance, refreshGasAccount]);
 
   const fromDisplayToken = fromToken ?? BRIDGE_TOKENS[0];
   const toDisplayToken = toToken;
@@ -1155,7 +1196,7 @@ function EnabledBridgePageContent({
     ? isSolanaConnected
       ? getBridgeAddressForChain(fromChainId, user?.wallet?.address)
       : ""
-    : getBridgeAddressForChain(fromChainId, user?.wallet?.address);
+    : getBridgeAddressForChain(fromChainId, sourceWalletAddress);
   const destinationBridgeAddress = getDestinationBridgeAddress(
     toChainId,
     user?.wallet?.address,
@@ -1197,7 +1238,8 @@ function EnabledBridgePageContent({
   const requiredSourceBalance =
     Number.isFinite(requestedBridgeAmount) && requestedBridgeAmount > 0
       ? requestedBridgeAmount +
-        (Number.isFinite(platformFeeAmount) ? platformFeeAmount : 0)
+        (Number.isFinite(platformFeeAmount) ? platformFeeAmount : 0) +
+        gasAccountReserveAmount
       : 0;
   const isBridgeBalanceInsufficient =
     !bridgeHook.isLoading &&
@@ -1242,6 +1284,7 @@ function EnabledBridgePageContent({
     isSourceBalanceUnavailable ||
     isBridgeAmountBelowCctpFee ||
     isBridgeBalanceInsufficient ||
+    (isGasAccountMode && !gasAccount.address) ||
     bridgeHook.isBridging ||
     bridgeHook.isLoading;
   const needsSourceEvmWallet = !isSolanaBridgeChain(fromChainId) && !user;
@@ -1342,7 +1385,9 @@ function EnabledBridgePageContent({
     }
 
     if (isBridgeBalanceInsufficient) {
-      return "Insufficient Balance";
+      return isGasAccountMode
+        ? "Insufficient Gas Account Balance"
+        : "Insufficient Balance";
     }
 
     return "Bridge";
@@ -1809,6 +1854,25 @@ function EnabledBridgePageContent({
                   </span>
                 </div>
               </motion.div>
+            )}
+
+            {gasAccount.supported && isGasAccountToken && fromChainId && (
+              <GasAccountPanel
+                chainKey={fromChainId}
+                chainName={fromChain?.name ?? "the source chain"}
+                walletConnected={gasAccount.available}
+                enabled={gasAccount.enabled}
+                onToggle={gasAccount.setEnabled}
+                address={gasAccount.address}
+                balance={gasAccount.balance}
+                balanceStatus={gasAccount.balanceStatus}
+                walletClient={walletClient}
+                disabled={bridgeHook.isBridging}
+                onRefresh={() => {
+                  gasAccount.refresh();
+                  fetchWalletBalance();
+                }}
+              />
             )}
 
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>

@@ -12,7 +12,7 @@ export const getArcExplorerTxUrl = (
 // Arc Testnet Configuration and utilities
 export const ARC_TESTNET_CONFIG = {
   chainId: 5042002,
-  rpcUrl: "https://rpc.testnet.arc.network",
+  rpcUrl: "https://rpc.testnet.arc.io",
   currency: "USDC",
   decimals: 18,
   explorerUrl: ARC_TESTNET_EXPLORER_URL,
@@ -36,10 +36,10 @@ export const ARC_ADD_NETWORK_PARAMS = [
       decimals: 18,
     },
     rpcUrls: [
-      "https://rpc.drpc.testnet.arc.network",
-      "https://rpc.quicknode.testnet.arc.network",
-      "https://rpc.blockdaemon.testnet.arc.network",
-      "https://rpc.testnet.arc.network",
+      "https://rpc.drpc.testnet.arc.io",
+      "https://rpc.quicknode.testnet.arc.io",
+      "https://rpc.blockdaemon.testnet.arc.io",
+      "https://rpc.testnet.arc.io",
     ],
     blockExplorerUrls: [ARC_TESTNET_EXPLORER_URL],
   },

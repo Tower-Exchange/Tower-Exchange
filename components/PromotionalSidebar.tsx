@@ -86,7 +86,7 @@ export default function PromotionalSidebar() {
     //   }
     // },
     {
-      id: "conquest-trade",
+      id: "claude-mcp-trade",
       heroImage: "/assets/tradeonclaude.svg",
       imageWidthClass: "w-[125px]",
       title: "Trade on Claude AI",

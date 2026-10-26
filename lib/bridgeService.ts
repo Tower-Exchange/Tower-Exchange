@@ -162,8 +162,8 @@ const VIEM_CHAIN_MAP: Record<number, ViemChain> = {
     network: "arc-testnet",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: {
-      default: { http: ["https://rpc.testnet.arc.network"] },
-      public: { http: ["https://rpc.testnet.arc.network"] },
+      default: { http: ["https://rpc.testnet.arc.io"] },
+      public: { http: ["https://rpc.testnet.arc.io"] },
     },
   } as ViemChain,
 };
@@ -176,7 +176,7 @@ export const SUPPORTED_CHAINS = {
   "arc-testnet": {
     name: "Arc Testnet",
     chainId: 5042002,
-    rpcUrl: "https://rpc.testnet.arc.network",
+    rpcUrl: "https://rpc.testnet.arc.io",
     nativeTokenSymbol: "USDC",
     circleChain: "Arc_Testnet" as const,
     usdcAddress: BRIDGE_USDC_ADDRESSES["arc-testnet"],
@@ -1354,7 +1354,17 @@ const getBridgeRpcProxyUrl = (chainId: number) => {
     return null;
   }
 
-  return `${window.location.origin}/api/rpc/${chainId}`;
+  // The wallet keeps this URL as the chain's RPC, so a localhost or tunnel
+  // address would leave the network unreachable once that server is gone.
+  const { hostname, origin } = window.location;
+  if (
+    /^(localhost$|127\.|10\.|192\.168\.)/.test(hostname) ||
+    /\.ngrok(-free)?\.(app|io|dev)$/.test(hostname)
+  ) {
+    return null;
+  }
+
+  return `${origin}/api/rpc/${chainId}`;
 };
 
 const getWalletAddChainParams = (
@@ -1699,6 +1709,8 @@ export interface BridgeRequest {
   walletClient?: any; // WalletClient from useWalletClient();
   chain?: any; // Chain object from useAccount() or useChainId();
   useForwarder?: boolean; // Let Circle submit the destination mint transaction.
+  // "usdc-paymaster" sends from the user's Gas Account and pays gas in USDC
+  gasMode?: "native" | "usdc-paymaster";
   onProgress?: (progress: BridgeProgressSnapshot) => void;
 }
 
@@ -1890,6 +1902,93 @@ export async function createBridgeKitAdapterFromClients(
 }
 
 /**
+ * Bridge Kit adapter that sends from the user's Gas Account and pays gas in
+ * USDC through Circle Paymaster. The paymaster code is loaded on demand.
+ */
+type GasAccountFailure = { message: string | null };
+
+async function createGasAccountBridgeKitAdapter(
+  request: Pick<BridgeRequest, "fromChain" | "token" | "walletClient">,
+  failure: GasAccountFailure,
+): Promise<unknown> {
+  const { getPaymasterChain } = await import("@/lib/paymaster/config");
+  const { getGasAccountAddress, GasAccountError } = await import(
+    "@/lib/paymaster/gasAccount"
+  );
+  const { createGasAccountProvider } = await import(
+    "@/lib/paymaster/provider"
+  );
+
+  if (!getPaymasterChain(request.fromChain)) {
+    throw new GasAccountError(
+      "unsupported-chain",
+      "Gas in USDC isn't available on this network.",
+    );
+  }
+
+  if ((request.token || "USDC").toUpperCase() !== "USDC") {
+    throw new Error("Gas in USDC works with USDC bridges only.");
+  }
+
+  const walletClient = request.walletClient;
+  const ownerAddress = walletClient?.account?.address;
+  const walletProvider = getEvmRequestProvider(walletClient);
+
+  if (!walletClient || !ownerAddress || !walletProvider) {
+    throw new GasAccountError(
+      "wallet-unavailable",
+      "Connect your wallet first.",
+    );
+  }
+
+  const accountAddress = await getGasAccountAddress({
+    chainKey: request.fromChain,
+    ownerAddress,
+  });
+  const provider = createGasAccountProvider({
+    walletProvider,
+    walletClient,
+    accountAddress,
+    onError: (error) => {
+      failure.message = error.message;
+    },
+  });
+
+  const adapter = await createViemAdapterFromProvider({
+    provider: provider as unknown as EIP1193Provider,
+    getPublicClient: ({ chain: requestedChain }) => {
+      const supportedEntry = Object.entries(SUPPORTED_CHAINS).find(
+        ([, config]) => config.chainId === requestedChain.id,
+      );
+
+      if (supportedEntry && !isSolanaBridgeChain(supportedEntry[0])) {
+        return createEVMPublicClient(
+          supportedEntry[1].chainId,
+          `/api/rpc/${supportedEntry[1].chainId}`,
+        );
+      }
+
+      return createPublicClient({
+        chain: requestedChain,
+        transport: http(`/api/rpc/${requestedChain.id}`, {
+          retryCount: 10,
+          timeout: 180000,
+        }),
+        pollingInterval: 2000,
+      });
+    },
+    capabilities: {
+      addressContext: "user-controlled",
+      supportedChains: [...SUPPORTED_EVM_CIRCLE_CHAINS],
+    },
+  });
+
+  return withBridgeTransactionTimeouts(
+    withCircleChainAwareViemAdapter(adapter),
+  );
+}
+
+/**
  * Initialize Circle AppKit with the bridge capability
  * AppKit is preferred over BridgeKit for better bridge support
  */
@@ -2052,6 +2151,7 @@ export async function bridgeTokens(
 ): Promise<BridgeResponse> {
   const bridgeProgress: BridgeProgressSnapshot = { events: [] };
   (window as any).__lastBridgeProgress = bridgeProgress;
+  const gasAccountFailure: GasAccountFailure = { message: null };
   const shouldTrackEvmWalletChain = !isSolanaBridgeChain(request.fromChain);
   const initialWalletChainId = shouldTrackEvmWalletChain
     ? await getActiveWalletChainId(request.walletClient)
@@ -2283,6 +2383,18 @@ export async function bridgeTokens(
         return {
           success: false,
           error: `Solana wallet not connected. Please connect a supported Solana wallet to ${fromChainConfig.name}.`,
+        };
+      }
+    } else if (request.gasMode === "usdc-paymaster") {
+      try {
+        fromAdapter = await createGasAccountBridgeKitAdapter(
+          request,
+          gasAccountFailure,
+        );
+      } catch (error) {
+        return {
+          success: false,
+          error: getBridgeErrorMessage(error),
         };
       }
     } else {
@@ -2520,9 +2632,12 @@ export async function bridgeTokens(
 
       let retryableFailedStep = getRetryableFailedBridgeStep(result);
 
+      // no auto-retry for Gas Account failures, it would re-prompt the wallet
       for (
         let retryAttempt = 1;
-        retryableFailedStep && retryAttempt <= BRIDGE_RETRY_ATTEMPTS;
+        retryableFailedStep &&
+        !gasAccountFailure.message &&
+        retryAttempt <= BRIDGE_RETRY_ATTEMPTS;
         retryAttempt += 1
       ) {
         const retryMessage =
@@ -2537,14 +2652,23 @@ export async function bridgeTokens(
 
         await waitForBridgeRetryDelay(retryAttempt);
 
-        result = await executeBridgeAttemptWithTimeout(
-          `Bridge retry ${retryAttempt}`,
-          () =>
-            kit.retryBridge(
-              result as any,
-              getBridgeRetryContext(fromAdapter, toAdapter, useForwarder),
-            ),
-        );
+        try {
+          result = await executeBridgeAttemptWithTimeout(
+            `Bridge retry ${retryAttempt}`,
+            () =>
+              kit.retryBridge(
+                result as any,
+                getBridgeRetryContext(fromAdapter, toAdapter, useForwarder),
+              ),
+          );
+        } catch (retryError) {
+          // The kit won't retry some failures (like a failed approval). Keep
+          // the original result so its real error is shown.
+          if (getBridgeErrorMessage(retryError).includes("Retry not supported")) {
+            break;
+          }
+          throw retryError;
+        }
 
         retryableFailedStep = getRetryableFailedBridgeStep(result);
       }
@@ -2800,6 +2924,7 @@ export async function bridgeTokens(
       return {
         success: false,
         error:
+          gasAccountFailure.message ||
           errorMessage ||
           `Bridge failed with state: ${(result as any)?.state || "unknown"}`,
       };
@@ -2851,7 +2976,10 @@ export async function bridgeTokens(
     let errorMessage = rawErrorMessage;
 
     // Check for specific error patterns
-    if (isBridgeTimeoutError(rawErrorMessage)) {
+    if (gasAccountFailure.message) {
+      // the kit turns these into a generic "RPC endpoint" error
+      errorMessage = gasAccountFailure.message;
+    } else if (isBridgeTimeoutError(rawErrorMessage)) {
       errorMessage =
         "Bridge transaction is taking longer than expected. The bridge may still be pending on-chain. Check your wallet for pending transactions, then try again once the network settles.";
     } else if (isBridgeNetworkError(rawErrorMessage)) {
