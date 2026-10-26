@@ -211,6 +211,7 @@ export const getBridgeUiChains = (mode: BridgeNetworkMode) => {
 export const getBridgeSelectChains = (mode: BridgeNetworkMode) => {
   const chains = getBridgeUiChains(mode);
   return chains.length
-    ? [{ ...ALL_CHAINS_OPTION, mode }, ...chains]
+    // ? [{ ...ALL_CHAINS_OPTION, mode }, ...chains]
+    ? [...chains]
     : [];
 };

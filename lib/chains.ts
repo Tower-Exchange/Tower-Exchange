@@ -20,7 +20,7 @@ export type AppChain = {
 };
 
 export const CHAINS: AppChain[] = [
-  { id: "all", name: "All Chains", color: "#4B5563", logo: globeLogo },
+  // { id: "all", name: "All Chains", color: "#4B5563", logo: globeLogo },
   {
     id: "arc-testnet",
     name: "Arc Testnet",
