@@ -73,7 +73,7 @@ const DIRECT_RPC_URLS: Record<number, string> = {
   42161: "https://arb1.arbitrum.io/rpc",
   59144: "https://rpc.linea.build",
   5042: ARC_MAINNET_PUBLIC_RPC_URL,
-  5042002: "https://rpc.testnet.arc.network",
+  5042002: "https://rpc.testnet.arc.io",
   84532: "https://sepolia.base.org",
   11155420: "https://sepolia.optimism.io",
   43113: "https://api.avax-test.network/ext/bc/C/rpc",

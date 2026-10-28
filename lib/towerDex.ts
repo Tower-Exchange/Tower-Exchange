@@ -17,7 +17,7 @@ import { QCAD_SWAP_PAIRS_ENABLED } from "@/lib/swapTokens";
 export const TOWER_DEX_ID = "tower-dex" as const;
 export const TOWER_DEX_NAME = "Tower" as const;
 export const TOWER_DEX_CHAIN_ID = 5042002;
-export const TOWER_DEX_PUBLIC_RPC_URL = "https://rpc.testnet.arc.network";
+export const TOWER_DEX_PUBLIC_RPC_URL = "https://rpc.testnet.arc.io";
 export const TOWER_DEX_PROXY_RPC_PATH = ARC_RPC_PROXY_PATH;
 const TOWER_SWAP_FEE_MODE = "tower-swap-executor" as const;
 const DEFAULT_TOWER_SWAP_FEE_BPS = 25;

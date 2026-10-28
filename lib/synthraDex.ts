@@ -14,7 +14,7 @@ import {
 import { TOKEN_CONTRACTS } from "@/lib/arcNetwork";
 
 export const SYNTHRA_CHAIN_ID = 5042002;
-export const SYNTHRA_PUBLIC_RPC_URL = "https://rpc.testnet.arc.network";
+export const SYNTHRA_PUBLIC_RPC_URL = "https://rpc.testnet.arc.io";
 export const SYNTHRA_PROXY_RPC_PATH = "/api/rpc/5042002";
 
 export const synthraArcTestnet = {
@@ -29,7 +29,7 @@ export const synthraArcTestnet = {
     default: { http: [SYNTHRA_PUBLIC_RPC_URL] },
   },
   blockExplorers: {
-    default: { name: "Arc Explorer", url: "https://explorer.testnet.arc.network" },
+    default: { name: "Arc Explorer", url: "https://explorer.testnet.arc.io" },
   },
   testnet: true,
 } as const;

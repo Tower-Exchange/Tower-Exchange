@@ -12,10 +12,10 @@ const ARC_MAINNET_ALCHEMY_RPC_URL =
 
 export const ARC_RPC_ENDPOINTS = [
   ARC_ALCHEMY_RPC_URL,
-  "https://rpc.drpc.testnet.arc.network",
-  "https://rpc.quicknode.testnet.arc.network",
-  "https://rpc.blockdaemon.testnet.arc.network",
-  "https://rpc.testnet.arc.network",
+  "https://rpc.drpc.testnet.arc.io",
+  "https://rpc.quicknode.testnet.arc.io",
+  "https://rpc.blockdaemon.testnet.arc.io",
+  "https://rpc.testnet.arc.io",
 ].filter((rpcUrl): rpcUrl is string => Boolean(rpcUrl));
 
 export const ARC_MAINNET_RPC_ENDPOINTS = [
