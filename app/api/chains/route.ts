@@ -9,7 +9,7 @@ const SUPPORTED_CHAINS = [
     key: "arc-testnet",
     type: "evm",
     nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
-    rpcUrl: "https://rpc.testnet.arc.network",
+    rpcUrl: "https://rpc.testnet.arc.io",
     explorerUrl: "https://testnet.arcscan.app",
     supportedFeatures: ["swaps", "bridge", "rpc-proxy", "wallet-balance"],
   },

@@ -72,7 +72,7 @@ export const SolanaWalletProvider = ({ children }: { children: ReactNode }) => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.98 }}
               transition={{ duration: 0.18 }}
-              className="fixed left-1/2 top-1/2 z-[100] w-[min(92vw,28rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-muted shadow-2xl"
+              className="fixed left-1/2 top-1/2 z-[100] w-[min(92vw,28rem)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-[#101113] shadow-2xl"
             >
               <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
                 <div>

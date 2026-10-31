@@ -18,7 +18,7 @@ import {
   SYNTHRA_CHAIN_ID,
 } from "@/lib/synthraDex";
 
-export const UNITFLOW_PUBLIC_RPC_URL = "https://rpc.testnet.arc.network";
+export const UNITFLOW_PUBLIC_RPC_URL = "https://rpc.testnet.arc.io";
 export const UNITFLOW_PROXY_RPC_PATH = "/api/rpc/5042002";
 
 export const unitFlowArcTestnet = {

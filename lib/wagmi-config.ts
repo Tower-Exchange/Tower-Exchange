@@ -63,10 +63,10 @@ const arcTestnet = {
     symbol: "ARC",
   },
   rpcUrls: {
-    default: { http: ["https://rpc.testnet.arc.network"] },
+    default: { http: ["https://rpc.testnet.arc.io"] },
   },
   blockExplorers: {
-    default: { name: "Explorer", url: "https://explorer.testnet.arc.network" },
+    default: { name: "Explorer", url: "https://explorer.testnet.arc.io" },
   },
   testnet: true,
 } as const;
