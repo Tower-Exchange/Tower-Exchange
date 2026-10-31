@@ -28,6 +28,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function isCircleWebhookTest(payload: Record<string, unknown>) {
+  if (payload.notificationType === "webhooks.test") return true;
+
+  // Keep this tolerant of the envelope used by Circle Hub's activation
+  // request. Unlike a StableFX event, either shape has no trade data and is
+  // safe to acknowledge immediately.
+  const data = payload.data;
+  return isRecord(data) && data.notificationType === "webhooks.test";
+}
+
 export async function HEAD() {
   // Circle validates webhook endpoints with HEAD before it can send POSTs.
   return new NextResponse(null, {
@@ -47,6 +57,25 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: "Webhook payload is too large." }, 413);
   }
 
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(rawBody).toString("utf8")) as unknown;
+  } catch {
+    return noStoreJson({ error: "Invalid webhook payload." }, 400);
+  }
+  if (!isRecord(payload)) {
+    return noStoreJson({ error: "Invalid webhook payload." }, 400);
+  }
+
+  // Circle Hub's activation probe uses webhooks.test. It has no trade data or
+  // side effect, so acknowledge it without waiting on a remote signing-key
+  // lookup, subscription lookup, or Supabase writes. That makes the endpoint
+  // validation path fast even immediately after a Railway cold start. Real
+  // StableFX events still undergo signature verification before any processing.
+  if (isCircleWebhookTest(payload)) {
+    return noStoreJson({ received: true, test: true });
+  }
+
   const signature = request.headers.get("x-circle-signature");
   const keyId = request.headers.get("x-circle-key-id");
   if (!signature || !keyId) {
@@ -56,16 +85,6 @@ export async function POST(request: NextRequest) {
   try {
     const valid = await verifyStableFxWebhookSignature({ rawBody, signature, keyId });
     if (!valid) return noStoreJson({ error: "Invalid Circle webhook signature." }, 401);
-
-    let payload: unknown;
-    try {
-      payload = JSON.parse(Buffer.from(rawBody).toString("utf8")) as unknown;
-    } catch {
-      return noStoreJson({ error: "Invalid webhook payload." }, 400);
-    }
-    if (!isRecord(payload)) {
-      return noStoreJson({ error: "Invalid webhook payload." }, 400);
-    }
     if (!isExpectedSubscription(payload.subscriptionId)) {
       console.error("Rejected Circle StableFX webhook from an unexpected subscription", {
         subscriptionId: payload.subscriptionId,
