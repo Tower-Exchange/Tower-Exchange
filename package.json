@@ -12,6 +12,7 @@
     "start": "node scripts/start-next.mjs",
     "lint": "eslint",
     "generate:invite-codes": "node scripts/generate-invite-codes.mjs",
+    "approve:stablefx": "node scripts/approve-stablefx-permit2.mjs",
     "withdraw:fees": "node scripts/withdraw-fees-to-treasury.mjs",
     "drain:fee-collector": "node scripts/split-fees-in-place-drain.mjs",
     "verify:arc-mainnet": "npm run verify:arc-mainnet --prefix contracts && npm run verify:arc-mainnet --prefix Tower-AMM"

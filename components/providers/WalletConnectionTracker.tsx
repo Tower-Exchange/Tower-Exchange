@@ -20,7 +20,10 @@ export const WalletConnectionTracker = () => {
       void ensureWalletSession(normalizedAddress)
         .then(() => ensureAiWalletProof(normalizedAddress))
         .catch((error) => {
-          console.warn("Wallet session or AI authorization sign-in failed:", error);
+          console.warn(
+            "Wallet session or AI authorization sign-in failed:",
+            error,
+          );
         });
 
       if (data.isReconnected) {

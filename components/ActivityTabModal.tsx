@@ -87,6 +87,10 @@ const formatTimeAgo = (timestamp: number | string) => {
 };
 
 const getDbRouteLabel = (row: ActivityRow) => {
+  if (/stable\s*fx/i.test(row.type)) {
+    return "Circle StableFX";
+  }
+
   if (row.type.toLowerCase().includes("bridge")) {
     return "CCTP (Fast)";
   }
@@ -111,7 +115,11 @@ const getDbStatus = (status: ActivityRow["status"]): ActivityTabLiveItem["status
 };
 
 const getDbStatusLabel = (row: ActivityRow) => {
-  const label = row.type.toLowerCase().includes("bridge") ? "Bridge" : "Swap";
+  const label = /stable\s*fx/i.test(row.type)
+    ? "StableFX"
+    : row.type.toLowerCase().includes("bridge")
+      ? "Bridge"
+      : "Swap";
 
   if (row.status === "Successful") {
     return `${label} Successful`;
@@ -126,12 +134,17 @@ const getDbStatusLabel = (row: ActivityRow) => {
 
 const rowToActivityItem = (row: ActivityRow): ActivityTabItem => {
   const isBridge = row.type.toLowerCase().includes("bridge");
+  const isStableFx = /stable\s*fx/i.test(row.type);
   const kind: ActivityTabLiveItem["kind"] = isBridge ? "bridge" : "swap";
   const sourceToken = row.source_currency_ticker;
   const destinationToken = row.destination_currency_ticker || "";
   const amount = formatAmount(row.amount);
   const title = isBridge
     ? `Bridge ${amount ? `${amount} ` : ""}${sourceToken}`
+    : isStableFx
+      ? `StableFX ${amount ? `${amount} ` : ""}${sourceToken}${
+          destinationToken ? ` to ${destinationToken}` : ""
+        }`
     : `Swap ${amount ? `${amount} ` : ""}${sourceToken}${
         destinationToken ? ` to ${destinationToken}` : ""
       }`;
@@ -475,7 +488,7 @@ const ActivityTabModal = ({
             </p>
             <p className="mt-2 max-w-[18rem] text-sm text-muted-foreground/80">
               {isWalletConnected
-                ? "Your swaps and bridges will appear here."
+                ? "Your swaps, StableFX trades, and bridges will appear here."
                 : "Connect your wallet to view activity."}
             </p>
           </div>

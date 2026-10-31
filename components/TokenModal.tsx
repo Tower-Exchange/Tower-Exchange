@@ -4,28 +4,41 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDebounce } from "use-debounce";
 import Image from "next/image";
+import type { StaticImageData } from "next/image";
 
 import { SWAP_TOKENS, type SwapToken } from "@/lib/swapTokens";
 
-interface TokenModalProps {
+export type TokenModalToken = {
+  id?: string;
+  symbol: string;
+  name: string;
+  icon: StaticImageData;
+  stableFx?: boolean;
+};
+
+interface TokenModalProps<Token extends TokenModalToken = SwapToken> {
   isOpen: boolean;
   onClose: () => void;
-  selected: SwapToken;
-  onSelect: (token: SwapToken) => void;
+  selected: Token;
+  onSelect: (token: Token) => void;
   excludeSymbol?: string;
-  availableTokens?: readonly SwapToken[];
+  excludeTokenId?: string;
+  availableTokens?: readonly Token[];
   tokenBalances?: Record<string, number>;
 }
 
-const TokenModal = ({
+const TokenModal = <Token extends TokenModalToken = SwapToken>({
   isOpen,
   onClose,
   selected,
   onSelect,
   excludeSymbol,
-  availableTokens = SWAP_TOKENS,
+  excludeTokenId,
+  availableTokens,
   tokenBalances = {},
-}: TokenModalProps) => {
+}: TokenModalProps<Token>) => {
+  const selectableTokens =
+    availableTokens ?? (SWAP_TOKENS as unknown as readonly Token[]);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery] = useDebounce(searchQuery, 300);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -43,8 +56,9 @@ const TokenModal = ({
   }, [isOpen]);
 
   const filteredTokens = useMemo(() => {
-    return availableTokens.filter((token) => {
+    return selectableTokens.filter((token) => {
       if (token.symbol === excludeSymbol) return false;
+      if ((token.id ?? token.symbol) === excludeTokenId) return false;
 
       const matchesSearch =
         !debouncedSearchQuery.trim() ||
@@ -55,7 +69,7 @@ const TokenModal = ({
 
       return matchesSearch;
     });
-  }, [availableTokens, debouncedSearchQuery, excludeSymbol]);
+  }, [selectableTokens, debouncedSearchQuery, excludeSymbol, excludeTokenId]);
 
   if (!isOpen) return null;
 
@@ -111,10 +125,12 @@ const TokenModal = ({
             ) : (
               <div className="px-2 pb-2">
                 {filteredTokens.map((token, index) => {
-                  const isSelected = selected.symbol === token.symbol;
+                  const isSelected =
+                    (selected.id ?? selected.symbol) ===
+                    (token.id ?? token.symbol);
                   return (
                     <motion.button
-                      key={token.symbol}
+                      key={token.id ?? token.symbol}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.02 }}
@@ -149,6 +165,11 @@ const TokenModal = ({
                           <p className="text-xs text-muted-foreground/60">
                             {token.name}
                           </p>
+                          {token.stableFx ? (
+                            <span className="mt-1 inline-flex rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              StableFX
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

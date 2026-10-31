@@ -18,6 +18,12 @@ export default function Home() {
 
     // On mount, if swap prefills exist, switch to swap view
     const params = new URLSearchParams(window.location.search);
+    const requestedView = params.get("view");
+    if (
+      requestedView === "swap" || requestedView === "bridge"
+    ) {
+      setCurrentView(requestedView);
+    }
     if (params.get("select") || params.get("from") || params.get("to")) {
       setCurrentView("swap");
     }
@@ -33,14 +39,15 @@ export default function Home() {
   const showBridge = useCallback(() => {
     flushSync(() => setCurrentView("bridge"));
   }, []);
-
   return (
     <>
       <TokenTicker />
       <main className="flex-1 flex flex-col items-center justify-center py-12 px-4 gap-8">
-        {currentView === "swap" ? (
+        {currentView !== "bridge" ? (
           <div className="w-full max-w-[62rem]">
-            <SwapCard onNavigateToBridge={showBridge} />
+            <SwapCard
+              onNavigateToBridge={showBridge}
+            />
           </div>
         ) : (
           <div className="w-full max-w-md">

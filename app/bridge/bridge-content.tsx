@@ -218,18 +218,54 @@ export default function BridgePageContent({
 }) {
   if (!isEvmBridgeEnabled() && !isSolanaBridgeEnabled()) {
     return (
-      <div className="rounded-2xl border border-border/70 bg-[#101113] p-6 text-center">
-        <h1 className="text-lg font-semibold text-foreground">
-          Bridging is temporarily unavailable
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          EVM and Solana bridges are currently disabled.
-        </p>
-      </div>
+      <BridgeUnavailableCard
+        onNavigateToSwap={onNavigateToSwap}
+      />
     );
   }
 
-  return <EnabledBridgePageContent onNavigateToSwap={onNavigateToSwap} />;
+  return (
+    <EnabledBridgePageContent
+      onNavigateToSwap={onNavigateToSwap}
+    />
+  );
+}
+
+function BridgeUnavailableCard({
+  onNavigateToSwap,
+}: {
+  onNavigateToSwap?: () => void;
+}) {
+  const router = useRouter();
+  const navigateToSwap = () => {
+    if (onNavigateToSwap) {
+      onNavigateToSwap();
+      return;
+    }
+    router.push("/");
+  };
+  return (
+    <div className="rounded-2xl border border-border bg-[#191A1C] px-6 pb-6 pt-6 text-center">
+      <div className="mb-6 inline-flex items-center gap-1 rounded-full bg-[#121211] p-1">
+        <button
+          type="button"
+          onClick={navigateToSwap}
+          className="rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground"
+        >
+          Swap
+        </button>
+        <span className="rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-foreground">
+          Bridge
+        </span>
+      </div>
+      <h1 className="text-lg font-semibold text-foreground">
+        Bridging is temporarily unavailable
+      </h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        EVM and Solana bridges are currently disabled.
+      </p>
+    </div>
+  );
 }
 
 function EnabledBridgePageContent({

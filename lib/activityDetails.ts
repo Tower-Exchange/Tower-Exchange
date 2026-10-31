@@ -100,6 +100,10 @@ export const getExplorerHomeUrl = (networkName?: string | null) => {
 };
 
 export const getActivityRouteLabel = (row: ActivityRow) => {
+  if (/stable\s*fx/i.test(row.type)) {
+    return "Circle StableFX";
+  }
+
   if (row.type.toLowerCase().includes("bridge")) {
     return "CCTP (Fast)";
   }
@@ -166,6 +170,7 @@ export const buildTransactionInfoDetails = (
   }
 
   const isBridge = row.type.toLowerCase().includes("bridge");
+  const isStableFx = /stable\s*fx/i.test(row.type);
   const sourceAmount = formatActivityAmount(row.amount);
   const destinationAmount = isBridge ? sourceAmount : "";
   const destinationToken = row.destination_currency_ticker || "";
@@ -181,6 +186,10 @@ export const buildTransactionInfoDetails = (
       ? `Bridge ${sourceAmount ? `${sourceAmount} ` : ""}${
           row.source_currency_ticker
         }`.trim()
+      : isStableFx
+        ? `StableFX ${sourceAmount ? `${sourceAmount} ` : ""}${
+            row.source_currency_ticker
+          } to ${destinationToken || "tokens"}`.trim()
       : getSwapTitle(
           sourceAmount,
           row.source_currency_ticker,

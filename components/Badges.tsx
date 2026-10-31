@@ -44,6 +44,12 @@ type PioneerBadgeStatuses = Partial<
   Record<PioneerBadgeId, PioneerBadgeStatus>
 >;
 
+const PIONEER_CONQUEST_INFO_URL =
+  "https://republic.legion.cc/conquest/1467135771780710474-tower-exchange-pioneers";
+const PIONEER_CONQUEST_URL =
+  "https://republic.legion.cc/conquest/1467135771780710474-tower-exchange-pioneer";
+const PIONEER_CONQUEST_STORAGE_KEY = "tower:pioneer-conquest-opened";
+
 const isPioneerBadgeId = (badgeId: string): badgeId is PioneerBadgeId =>
   (PIONEER_BADGE_IDS as readonly string[]).includes(badgeId);
 
@@ -89,6 +95,7 @@ const postArctoberBadges: Badge[] = [
     isClaimed: false,
     isInteractive: true,
     requirements: [
+      "Sign up and complete the conquest",
       "Complete at least 10 swap transactions",
       "Accumulate at least $1,000 in total swap volume",
     ],
@@ -115,6 +122,7 @@ const postArctoberBadges: Badge[] = [
     isClaimed: false,
     isInteractive: true,
     requirements: [
+      "Sign up and complete the conquest",
       "Complete at least 10 bridge transactions",
       "Accumulate at least $1,000 in total bridge volume",
     ],
@@ -155,6 +163,8 @@ const BadgeDetailsModal = ({
   isClaiming = false,
   claimError = null,
   isWalletConnected = false,
+  isPioneerConquestComplete = false,
+  onOpenPioneerConquestDisclaimer,
 }: {
   badge: Badge | null;
   onClose: () => void;
@@ -164,6 +174,8 @@ const BadgeDetailsModal = ({
   isClaiming?: boolean;
   claimError?: string | null;
   isWalletConnected?: boolean;
+  isPioneerConquestComplete?: boolean;
+  onOpenPioneerConquestDisclaimer?: () => void;
 }) => {
   const [userSelectedTab, setUserSelectedTab] = useState<{
     badgeId: string | null;
@@ -189,26 +201,44 @@ const BadgeDetailsModal = ({
     badge?.image ??
     (badge?.id === "squire" ? badgeClaimedImage : badge?.isClaimed ? badgeClaimedImage : badgeUnclaimedImage);
 
-  const requirements = badge?.pioneerStatus
+  const isPioneerBadge = isPioneerBadgeId(badge?.id ?? "");
+  const requirements = isPioneerBadge
     ? [
         {
-          label: `${badge.pioneerStatus.transactionCount} / ${
-            badge.pioneerStatus.minimumTransactionCount
-          } successful ${
-            badge.id === "swap-pioneer" ? "swap" : "bridge"
-          } transactions`,
-          isComplete:
-            isWalletConnected &&
-            badge.pioneerStatus.transactionCount >=
-              badge.pioneerStatus.minimumTransactionCount,
+          label: (
+            <>
+              Sign up and complete the{" "}
+              <a
+                href={PIONEER_CONQUEST_INFO_URL}
+                onClick={(event) => {
+                  event.preventDefault();
+                  onOpenPioneerConquestDisclaimer?.();
+                }}
+                className="text-[#78AFFF] underline underline-offset-2 transition-opacity hover:opacity-80"
+              >
+                conquest
+              </a>
+            </>
+          ),
+          isComplete: isPioneerConquestComplete,
         },
         {
-          label: `${formatUsd(badge.pioneerStatus.volumeUsd)} / ${formatUsd(
-            badge.pioneerStatus.minimumVolumeUsd,
-          )} in total ${badge.id === "swap-pioneer" ? "swap" : "bridge"} volume`,
+          label: `${badge?.pioneerStatus?.transactionCount ?? 0} / ${
+            badge?.pioneerStatus?.minimumTransactionCount ?? 10
+          } successful ${badge?.id === "swap-pioneer" ? "swap" : "bridge"} transactions`,
           isComplete:
             isWalletConnected &&
-            badge.pioneerStatus.volumeUsd >= badge.pioneerStatus.minimumVolumeUsd,
+            (badge?.pioneerStatus?.transactionCount ?? 0) >=
+              (badge?.pioneerStatus?.minimumTransactionCount ?? 10),
+        },
+        {
+          label: `${formatUsd(badge?.pioneerStatus?.volumeUsd ?? 0)} / ${formatUsd(
+            badge?.pioneerStatus?.minimumVolumeUsd ?? 1_000,
+          )} in total ${badge?.id === "swap-pioneer" ? "swap" : "bridge"} volume`,
+          isComplete:
+            isWalletConnected &&
+            (badge?.pioneerStatus?.volumeUsd ?? 0) >=
+              (badge?.pioneerStatus?.minimumVolumeUsd ?? 1_000),
         },
       ]
     : (badge?.requirements ?? []).map((label) => ({
@@ -216,7 +246,6 @@ const BadgeDetailsModal = ({
         isComplete: isWalletConnected && Boolean(badge?.isClaimed),
       }));
   const hasRequirements = requirements.length > 0;
-  const isPioneerBadge = isPioneerBadgeId(badge?.id ?? "");
 
   return (
     <AnimatePresence>
@@ -344,7 +373,7 @@ const BadgeDetailsModal = ({
                           <div
                             className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
                               requirement.isComplete
-                                ? "bg-[#7bb8ff]/15 text-[#000]"
+                                ? "bg-[#78AFFF]/15 text-[#78AFFF]"
                                 : "bg-white/10 text-muted-foreground"
                             }`}
                           >
@@ -429,6 +458,71 @@ const BadgeDetailsModal = ({
     </AnimatePresence>
   );
 };
+
+const PioneerConquestDisclaimerModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) => (
+  <AnimatePresence>
+    {isOpen ? (
+      <>
+        <motion.button
+          type="button"
+          aria-label="Close Republic Conquest disclaimer"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm"
+          onClick={onClose}
+        />
+        <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pioneer-conquest-disclaimer-title"
+          initial={{ opacity: 0, y: 18, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 18, scale: 0.97 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          className="fixed inset-0 z-[101] flex items-center justify-center px-4 py-6"
+        >
+          <div className="relative w-full max-w-[430px] rounded-[24px] border border-border bg-[#14181f] px-6 py-7 text-center shadow-2xl sm:px-8">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close Republic Conquest disclaimer"
+              className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
+            >
+              <X size={20} strokeWidth={2} />
+            </button>
+            <h3
+              id="pioneer-conquest-disclaimer-title"
+              className="pr-6 text-xl font-semibold text-foreground"
+            >
+              Republic Conquest
+            </h3>
+            <p className="mt-4 text-sm font-medium leading-relaxed text-foreground sm:text-base">
+              You must complete the Republic Conquest campaign to be eligible
+              for the 75 Valor Points
+            </p>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-full bg-[#78AFFF] px-6 text-sm font-semibold text-black transition-opacity hover:opacity-90 sm:text-base"
+            >
+              I understand
+            </button>
+          </div>
+        </motion.div>
+      </>
+    ) : null}
+  </AnimatePresence>
+);
 
 const ClaimingBadgeModal = ({ isOpen }: { isOpen: boolean }) => (
   <AnimatePresence>
@@ -646,11 +740,28 @@ const Badges = ({
   const [pioneerBadgeError, setPioneerBadgeError] = useState<string | null>(
     null,
   );
+  const [isPioneerConquestDisclaimerOpen, setIsPioneerConquestDisclaimerOpen] =
+    useState(false);
+  const [hasOpenedPioneerConquest, setHasOpenedPioneerConquest] = useState(
+    false,
+  );
   const normalizedWalletAddress = walletAddress?.trim().toLowerCase() ?? null;
 
   const handleCloseCountdown = useCallback(() => {
     setShowCountdownModal(false);
   }, []);
+
+  useEffect(() => {
+    setHasOpenedPioneerConquest(
+      window.localStorage.getItem(PIONEER_CONQUEST_STORAGE_KEY) === "true",
+    );
+  }, []);
+
+  const handleConfirmPioneerConquest = () => {
+    window.localStorage.setItem(PIONEER_CONQUEST_STORAGE_KEY, "true");
+    setHasOpenedPioneerConquest(true);
+    window.location.assign(PIONEER_CONQUEST_URL);
+  };
 
   useEffect(() => {
     if (!normalizedWalletAddress) {
@@ -1062,6 +1173,15 @@ const Badges = ({
         isClaiming={isClaimingPioneerBadge}
         claimError={pioneerBadgeError}
         isWalletConnected={isWalletConnected}
+        isPioneerConquestComplete={hasOpenedPioneerConquest}
+        onOpenPioneerConquestDisclaimer={() =>
+          setIsPioneerConquestDisclaimerOpen(true)
+        }
+      />
+      <PioneerConquestDisclaimerModal
+        isOpen={isPioneerConquestDisclaimerOpen}
+        onClose={() => setIsPioneerConquestDisclaimerOpen(false)}
+        onConfirm={handleConfirmPioneerConquest}
       />
       <ClaimingBadgeModal isOpen={isClaimingSquireBadge} />
       <BadgeCongratulationsModal

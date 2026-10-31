@@ -6,5 +6,11 @@
     "app/api/ai/chat/stream/route.ts": {
       "maxDuration": 120
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/stablefx-settlement",
+      "schedule": "* * * * *"
+    }
+  ]
 }

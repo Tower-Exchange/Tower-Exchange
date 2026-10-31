@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image, { type StaticImageData } from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -183,6 +184,18 @@ export const TransactionStepsModal = ({
   const activeStep = steps.find((step) => step.status === "active");
   const failedStep = steps.find((step) => step.status === "failed");
   const detailStep = failedStep || activeStep;
+  const failureMessage = failedStep?.detail?.trim() || null;
+  const [dismissedFailureMessage, setDismissedFailureMessage] = useState<string | null>(null);
+  // A transaction failure can contain an RPC or contract revert message that
+  // is too important (and too long) for a truncated step-row label. It opens
+  // automatically for a new error, while still allowing the user to dismiss it.
+  const isFailureDetailsOpen = Boolean(
+    isOpen && failureMessage && dismissedFailureMessage !== failureMessage,
+  );
+  const closeTransactionSteps = () => {
+    setDismissedFailureMessage(null);
+    onClose();
+  };
 
   return (
     <AnimatePresence>
@@ -202,10 +215,10 @@ export const TransactionStepsModal = ({
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-[81] flex items-center justify-center px-4 py-6"
           >
-            <div className="relative w-full max-w-[31rem] rounded-[28px] border border-[#263243] bg-card px-5 pb-7 pt-8 shadow-2xl sm:px-7">
+            <div className="relative max-h-[calc(100dvh-3rem)] w-full max-w-[31rem] overflow-y-auto rounded-[28px] border border-[#263243] bg-card px-4 pb-6 pt-8 shadow-2xl sm:max-h-[calc(100dvh-4rem)] sm:px-7 sm:pb-7">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={closeTransactionSteps}
                 className="absolute right-6 top-6 inline-flex h-8 w-8 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent"
                 aria-label="Close transaction steps"
               >
@@ -233,7 +246,7 @@ export const TransactionStepsModal = ({
                 </div>
               </div>
 
-              <div className="mt-7 rounded-[28px] border border-border bg-card px-6 py-5">
+              <div className="mt-7 rounded-[24px] border border-border bg-card px-4 py-4 sm:rounded-[28px] sm:px-6 sm:py-5">
                 <div className="relative space-y-5">
                   {steps.map((step, index) => {
                     const nextStep = steps[index + 1];
@@ -243,10 +256,10 @@ export const TransactionStepsModal = ({
                       nextStep.status !== "pending";
 
                     return (
-                      <div key={step.id} className="relative flex items-center gap-3">
+                      <div key={step.id} className="relative flex items-start gap-3">
                         {index < steps.length - 1 ? (
                           <span
-                            className={`absolute left-3 top-6 h-5 w-px ${
+                            className={`absolute left-3 top-6 -bottom-5 w-px ${
                               lineIsBright ? "bg-primary/70" : "bg-white/22"
                             }`}
                           />
@@ -254,9 +267,9 @@ export const TransactionStepsModal = ({
 
                         <StepStatusIcon step={step} />
 
-                        <div className="flex min-w-0 flex-1 items-center justify-between gap-4">
+                        <div className="min-w-0 flex-1 pt-0.5">
                           <span
-                            className={`truncate text-[0.98rem] font-medium ${
+                            className={`block break-words text-[0.95rem] font-medium leading-snug sm:text-[0.98rem] ${
                               step.status === "pending"
                                 ? "text-foreground/42"
                                 : "text-foreground"
@@ -266,15 +279,19 @@ export const TransactionStepsModal = ({
                           </span>
 
                           {detailStep?.id === step.id && step.detail ? (
-                            <span
-                              className={`max-w-[12rem] truncate text-right text-sm ${
-                                step.status === "failed"
-                                  ? "text-red-300"
-                                  : "text-foreground"
-                              }`}
-                            >
-                              {step.detail}
-                            </span>
+                            step.status === "failed" ? (
+                              <button
+                                type="button"
+                                onClick={() => setDismissedFailureMessage(null)}
+                                className="mt-1 text-left text-sm font-medium text-red-300 underline-offset-2 hover:underline"
+                              >
+                                View error
+                              </button>
+                            ) : (
+                              <span className="mt-1 block break-words text-sm leading-snug text-foreground">
+                                {step.detail}
+                              </span>
+                            )
                           ) : null}
                         </div>
                       </div>
@@ -284,6 +301,65 @@ export const TransactionStepsModal = ({
               </div>
             </div>
           </motion.div>
+
+          <AnimatePresence>
+            {isFailureDetailsOpen && failureMessage ? (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[90] bg-black/65 backdrop-blur-sm"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                  transition={{ duration: 0.18 }}
+                  className="fixed inset-0 z-[91] flex items-center justify-center px-4 py-6"
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="transaction-error-title"
+                >
+                  <div className="w-full max-w-lg rounded-[24px] border border-red-400/30 bg-card p-6 shadow-2xl">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500/15 text-red-300">
+                        <AlertTriangle className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h3 id="transaction-error-title" className="text-base font-semibold text-foreground">
+                          Transaction could not be completed
+                        </h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Review the full error below, then adjust your transaction and try again.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDismissedFailureMessage(failureMessage)}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                        aria-label="Close error details"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    <div className="mt-5 max-h-64 overflow-auto rounded-xl border border-red-400/20 bg-red-500/5 p-3 font-mono text-xs leading-5 text-red-100 whitespace-pre-wrap break-words">
+                      {failureMessage}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setDismissedFailureMessage(failureMessage)}
+                      className="mt-5 h-11 w-full rounded-xl bg-primary text-sm font-medium text-black transition-colors hover:bg-primary/90"
+                    >
+                      I understand
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            ) : null}
+          </AnimatePresence>
         </>
       ) : null}
     </AnimatePresence>

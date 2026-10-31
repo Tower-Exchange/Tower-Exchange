@@ -9,6 +9,9 @@ interface TokenInputProps {
   usdValueLabel: string;
   isLoading?: boolean;
   loadingLabel?: string;
+  disabled?: boolean;
+  /** Keep a read-only quoted value at full white contrast. */
+  forceWhiteValue?: boolean;
 }
 
 const MAX_FONT_SIZE = 36;
@@ -21,6 +24,8 @@ const TokenInput = ({
   usdValueLabel,
   isLoading = false,
   loadingLabel = "Loading quote",
+  disabled = false,
+  forceWhiteValue = false,
 }: TokenInputProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mirrorRef = useRef<HTMLSpanElement>(null);
@@ -137,17 +142,22 @@ const TokenInput = ({
           onBlur={() => {
             if (value === "") onChange("0.00");
           }}
+          disabled={disabled}
           style={{
             fontSize: `${fontSize}px`,
             height: `${MAX_FONT_SIZE + 4}px`,
             transition: "font-size 0.15s ease",
           }}
-          className="block w-full min-w-0 bg-transparent pr-6 text-right font-semibold text-foreground outline-none"
+          className={`block w-full min-w-0 bg-transparent pr-6 text-right font-semibold outline-none disabled:cursor-not-allowed ${
+            forceWhiteValue
+              ? "text-white disabled:text-white disabled:opacity-100"
+              : "text-foreground disabled:opacity-70"
+          }`}
           placeholder="0.00"
         />
       )}
 
-      {!isLoading && value !== "0.00" && value !== "" && (
+      {!isLoading && !disabled && value !== "0.00" && value !== "" && (
         <button
           onClick={onClear}
           className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-lg"

@@ -170,6 +170,8 @@ export const TOKEN_DECIMALS: Record<string, number> = {
   CNGN: 6,
   cNGN: 6,
   QCAD: 6,
+  MXNB: 6,
+  AUDF: 6,
   SWPRC: 6,
   SYN: 18,
   UNI: 18,

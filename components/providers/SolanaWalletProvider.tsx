@@ -13,16 +13,15 @@ import {
 import phantomIcon from "@/public/assets/phantom.svg";
 import solflareIcon from "@/public/assets/solflare.svg";
 
-const walletIcons: Record<SolanaWalletKey, { src: typeof phantomIcon; alt: string }> = {
+const walletIcons: Record<
+  SolanaWalletKey,
+  { src: typeof phantomIcon; alt: string }
+> = {
   phantom: { src: phantomIcon, alt: "Phantom" },
   solflare: { src: solflareIcon, alt: "Solflare" },
 };
 
-export const SolanaWalletProvider = ({
-  children,
-}: {
-  children: ReactNode;
-}) => {
+export const SolanaWalletProvider = ({ children }: { children: ReactNode }) => {
   const {
     modalOpen,
     closeConnectModal,
@@ -39,7 +38,10 @@ export const SolanaWalletProvider = ({
     const handleInitialized = () => refreshSolanaWalletState();
 
     window.addEventListener("focus", handleFocus);
-    window.addEventListener("solana#initialized", handleInitialized as EventListener);
+    window.addEventListener(
+      "solana#initialized",
+      handleInitialized as EventListener,
+    );
 
     return () => {
       window.removeEventListener("focus", handleFocus);
@@ -149,8 +151,8 @@ export const SolanaWalletProvider = ({
                 <div className="mt-4 flex items-start gap-2 rounded-2xl border border-[#7bb8ff]/15 bg-primary/8 px-4 py-3 text-sm text-[#7bb8ff]">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
                   <p>
-                    Your Solana wallet connection is shared across the app, so you
-                    only need to connect once for the bridge flow.
+                    Your Solana wallet connection is shared across the app, so
+                    you only need to connect once for the bridge flow.
                   </p>
                 </div>
 
@@ -165,4 +167,3 @@ export const SolanaWalletProvider = ({
     </>
   );
 };
-

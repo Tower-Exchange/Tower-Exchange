@@ -1,10 +1,14 @@
 import { StaticImageData } from "next/image";
 import usdcLogo from "@/public/assets/usdc.svg";
 import eurcLogo from "@/public/assets/eurc.svg";
+import gbpaLogo from "@/public/assets/gbpa.svg";
 import usdtLogo from "@/public/assets/usdt.svg";
 import cirbtcLogo from "@/public/assets/cirbtc.svg";
 import cngnLogo from "@/public/assets/cNGN.svg";
 import qcadLogo from "@/public/assets/QCAD.svg";
+import mxnbLogo from "@/public/assets/mxnb.svg";
+import audfLogo from "@/public/assets/audf.svg";
+import { isStableFxCustomerVisibleCurrency } from "@/lib/stableFx";
 
 export interface Token {
   symbol: string;
@@ -17,6 +21,48 @@ export interface Token {
   marketCap?: string;
   chartData?: number[];
 }
+
+/**
+ * Register all configured StableFX assets in one place. The customer-facing
+ * currency gate keeps GBPA and AUDF off the marquee until launch; MXNB is the
+ * only new StableFX ticker currently shown.
+ */
+const STABLEFX_MARQUEE_TOKENS: Token[] = [
+  {
+    symbol: "GBPA",
+    price: "£1.00",
+    change: "+0.0%",
+    icon: gbpaLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$--",
+    chartData: [1, 1, 1, 1, 1, 1, 1, 1, 1],
+  },
+  {
+    symbol: "MXNB",
+    price: "$0.055",
+    change: "+0.0%",
+    icon: mxnbLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$--",
+    chartData: [0.055, 0.055, 0.055, 0.055, 0.055, 0.055, 0.055, 0.055, 0.055],
+  },
+  {
+    symbol: "AUDF",
+    price: "$0.65",
+    change: "+0.0%",
+    icon: audfLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$--",
+    chartData: [0.65, 0.65, 0.65, 0.65, 0.65, 0.65, 0.65, 0.65, 0.65],
+  },
+].filter((token) =>
+  isStableFxCustomerVisibleCurrency(
+    token.symbol as "GBPA" | "MXNB" | "AUDF",
+  ),
+);
 
 export const tokens: Token[] = [
   {
@@ -39,6 +85,19 @@ export const tokens: Token[] = [
     marketCap: "$500M",
     chartData: [1.152, 1.151, 1.15, 1.149, 1.148, 1.147, 1.15, 1.149, 1.15],
   },
+  ...STABLEFX_MARQUEE_TOKENS,
+  /*
+  {
+    symbol: "GBPA",
+    price: "£1.00",
+    change: "+0.0%",
+    icon: gbpaLogo,
+    color: "text-primary",
+    change24h: "+0.0%",
+    marketCap: "$--",
+    chartData: [1, 1, 1, 1, 1, 1, 1, 1, 1],
+  },
+  */
   // {
   //   symbol: "USDT",
   //   price: "$1",

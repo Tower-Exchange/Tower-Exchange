@@ -7,6 +7,9 @@ export const DEFAULT_TOKEN_USD_PRICES = {
   cirBTC: 77000,
   cNGN: 1,
   QCAD: 0.73,
+  GBPA: 1.3,
+  MXNB: 0.055,
+  AUDF: 0.65,
 } as const;
 
 export type StableTokenSymbol = keyof typeof DEFAULT_TOKEN_USD_PRICES;
