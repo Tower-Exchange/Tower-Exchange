@@ -81,7 +81,11 @@ function requiredAddress(value: string | undefined, label: string): Address {
 
 function readTokenConfig(currency: StableFxCurrency): StableFxTokenConfig {
   const { address, decimals } = STABLEFX_ARC_MAINNET_TOKENS[currency];
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > MAX_TOKEN_DECIMALS) {
+  if (
+    !Number.isInteger(decimals) ||
+    decimals < 0 ||
+    decimals > MAX_TOKEN_DECIMALS
+  ) {
     throw new StableFxError(
       `StableFX ${currency} decimals must be an integer between 0 and ${MAX_TOKEN_DECIMALS}.`,
       503,
@@ -102,7 +106,10 @@ export function getStableFxTakerConfig(): StableFxTakerConfig {
     "CIRCLE_STABLEFX_TAKER_ADDRESS",
   );
   const approved = configuredTakerAddresses();
-  if (approved.length > 0 && !approved.includes(configuredAddress.toLowerCase())) {
+  if (
+    approved.length > 0 &&
+    !approved.includes(configuredAddress.toLowerCase())
+  ) {
     throw new StableFxError(
       "CIRCLE_STABLEFX_TAKER_ADDRESS is not present in CIRCLE_STABLEFX_TAKER_WALLETS.",
       503,
@@ -146,8 +153,8 @@ export function getStableFxTakerConfig(): StableFxTakerConfig {
 }
 
 function rpcUrls() {
-  const urls = [...ARC_MAINNET_RPC_ENDPOINTS].filter(
-    (url): url is string => Boolean(url && url.trim()),
+  const urls = [...ARC_MAINNET_RPC_ENDPOINTS].filter((url): url is string =>
+    Boolean(url && url.trim()),
   );
   if (!urls.length) {
     throw new StableFxError("No Arc RPC URL is configured for StableFX.", 503);
@@ -196,10 +203,13 @@ export async function verifyExactStableFxDeposit(params: {
   const client = getStableFxPublicClient();
   let receipt;
   try {
-    receipt = await client.getTransactionReceipt({ hash: params.transactionHash });
+    receipt = await client.getTransactionReceipt({
+      hash: params.transactionHash,
+    });
   } catch {
     const pending =
-      error instanceof Error && error.name === "TransactionReceiptNotFoundError";
+      Error instanceof Error &&
+      Error.name === "TransactionReceiptNotFoundError";
     throw new StableFxError(
       pending
         ? "Deposit transaction is not confirmed on Arc yet. Try again after confirmation."
@@ -211,9 +221,14 @@ export async function verifyExactStableFxDeposit(params: {
     throw new StableFxError("The deposit transaction reverted on Arc.", 400);
   }
 
-  const transaction = await client.getTransaction({ hash: params.transactionHash });
+  const transaction = await client.getTransaction({
+    hash: params.transactionHash,
+  });
   if (transaction.from.toLowerCase() !== params.from.toLowerCase()) {
-    throw new StableFxError("Deposit transaction was not sent by the signed-in wallet.", 403);
+    throw new StableFxError(
+      "Deposit transaction was not sent by the signed-in wallet.",
+      403,
+    );
   }
 
   const transferAmount = receipt.logs.reduce((total, log) => {
@@ -261,7 +276,10 @@ export function validateStableFxPermitTypedData(params: {
   expectedRecipient?: Address;
 }) {
   if (typedDataDomainChainId(params.typedData) !== ARC_STABLEFX_CHAIN.id) {
-    throw new StableFxError("Circle returned typed data for the wrong chain.", 502);
+    throw new StableFxError(
+      "Circle returned typed data for the wrong chain.",
+      502,
+    );
   }
   const permit2 = requiredAddress(
     typeof params.typedData.domain.verifyingContract === "string"
@@ -278,11 +296,15 @@ export function validateStableFxPermitTypedData(params: {
   try {
     permittedAmount = BigInt(String(permitted?.amount));
   } catch {
-    throw new StableFxError("Circle returned an invalid Permit2 token amount.", 502);
+    throw new StableFxError(
+      "Circle returned an invalid Permit2 token amount.",
+      502,
+    );
   }
   if (
     !permittedToken ||
-    permittedToken.toLowerCase() !== params.expectedToken.address.toLowerCase() ||
+    permittedToken.toLowerCase() !==
+      params.expectedToken.address.toLowerCase() ||
     (params.expectedAmount !== undefined &&
       permittedAmount !== params.expectedAmount)
   ) {
@@ -384,8 +406,14 @@ export function validateStableFxTradeIntentTypedData(params: {
       : null;
   const base = typedDataAddress(consideration.base, "trade base token");
   const quote = typedDataAddress(consideration.quote, "trade quote token");
-  const baseAmount = typedDataAmount(consideration.baseAmount, "trade base amount");
-  const quoteAmount = typedDataAmount(consideration.quoteAmount, "trade quote amount");
+  const baseAmount = typedDataAmount(
+    consideration.baseAmount,
+    "trade base amount",
+  );
+  const quoteAmount = typedDataAmount(
+    consideration.quoteAmount,
+    "trade quote amount",
+  );
 
   if (quoteId !== expectedQuoteId) {
     throw new StableFxError(
@@ -399,10 +427,12 @@ export function validateStableFxTradeIntentTypedData(params: {
   // exact source amount and destination token.
   const sourceIsQuote =
     quote.toLowerCase() === params.expectedSourceToken.address.toLowerCase() &&
-    base.toLowerCase() === params.expectedDestinationToken.address.toLowerCase();
+    base.toLowerCase() ===
+      params.expectedDestinationToken.address.toLowerCase();
   const sourceIsBase =
     base.toLowerCase() === params.expectedSourceToken.address.toLowerCase() &&
-    quote.toLowerCase() === params.expectedDestinationToken.address.toLowerCase();
+    quote.toLowerCase() ===
+      params.expectedDestinationToken.address.toLowerCase();
   const signedSourceAmount = sourceIsQuote
     ? quoteAmount
     : sourceIsBase
@@ -479,7 +509,10 @@ export async function signStableFxTypedData(
     console.error("StableFX EIP-712 signing failed", {
       message: error instanceof Error ? error.message : "unknown error",
     });
-    throw new StableFxError("Tower could not sign the StableFX authorisation.", 502);
+    throw new StableFxError(
+      "Tower could not sign the StableFX authorisation.",
+      502,
+    );
   }
 }
 
@@ -490,9 +523,14 @@ export async function findStableFxSettlementReceipt(params: {
   expectedAmount: bigint;
 }) {
   const client = getStableFxPublicClient();
-  const receipt = await client.getTransactionReceipt({ hash: params.transactionHash });
+  const receipt = await client.getTransactionReceipt({
+    hash: params.transactionHash,
+  });
   if (receipt.status !== "success") {
-    throw new StableFxError("StableFX settlement transaction reverted on Arc.", 502);
+    throw new StableFxError(
+      "StableFX settlement transaction reverted on Arc.",
+      502,
+    );
   }
   const matchingAmounts = receipt.logs.flatMap((log) => {
     if (
@@ -618,7 +656,8 @@ export async function getStableFxPayoutReceipt(transactionHash: Hex) {
     return await client.getTransactionReceipt({ hash: transactionHash });
   } catch (error) {
     const pending =
-      error instanceof Error && error.name === "TransactionReceiptNotFoundError";
+      error instanceof Error &&
+      error.name === "TransactionReceiptNotFoundError";
     if (pending) return null;
     throw error;
   }
