@@ -1073,7 +1073,10 @@ export async function reconcileStableFxOrder(order: StableFxOrderRow): Promise<S
       return executeOrder(current.id);
     }
 
-    if (normalizedStatus === "completed") {
+    // Circle's current StableFX trade API uses `complete`; some earlier API
+    // versions and docs used `completed`. Treat both as a settled trade so a
+    // completed trade is never left in Tower's funding-submitted state.
+    if (normalizedStatus === "complete" || normalizedStatus === "completed") {
       if (!trade.settlementTransactionHash || !isHash(trade.settlementTransactionHash)) {
         return (
           (await markForReview(

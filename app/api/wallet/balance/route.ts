@@ -17,6 +17,7 @@ import {
   isNativeArcUsdcChain,
   isSolanaBridgeChain,
 } from "@/lib/bridgeNetworks";
+import { STABLEFX_ARC_MAINNET_TOKENS } from "@/lib/stableFx";
 import { getTrustedClientIp } from "@/lib/server/clientIp";
 import { withFrontendOriginGate } from "@/lib/server/frontendRequestGuard";
 import { createIpRateLimiter } from "@/lib/server/ipRateLimit";
@@ -75,6 +76,12 @@ const KNOWN_ERC20_DECIMALS: Record<string, number> = {
     Object.values(BRIDGE_EURC_ADDRESSES).map((address) => [
       address.toLowerCase(),
       BRIDGE_EURC_DECIMALS,
+    ]),
+  ),
+  ...Object.fromEntries(
+    Object.values(STABLEFX_ARC_MAINNET_TOKENS).map(({ address, decimals }) => [
+      address.toLowerCase(),
+      decimals,
     ]),
   ),
 };

@@ -125,9 +125,10 @@ const TokenModal = <Token extends TokenModalToken = SwapToken>({
             ) : (
               <div className="px-2 pb-2">
                 {filteredTokens.map((token, index) => {
+                  const balanceKey = token.id ?? token.symbol;
                   const isSelected =
                     (selected.id ?? selected.symbol) ===
-                    (token.id ?? token.symbol);
+                    balanceKey;
                   return (
                     <motion.button
                       key={token.id ?? token.symbol}
@@ -173,10 +174,10 @@ const TokenModal = <Token extends TokenModalToken = SwapToken>({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {tokenBalances?.[token.symbol] !== undefined && (
+                        {tokenBalances?.[balanceKey] !== undefined && (
                           <div className="text-right">
                             <p className="text-sm font-medium text-foreground">
-                              {tokenBalances[token.symbol].toFixed(6)}
+                              {tokenBalances[balanceKey].toFixed(6)}
                             </p>
                             <p className="text-xs text-muted-foreground/60">
                               Balance

@@ -1347,6 +1347,23 @@ const SwapCard = ({
     resetSwapQuote();
   }, [resetSwapQuote]);
 
+  const handleStableFxOrderActiveChange = useCallback((active: boolean) => {
+    setIsStableFxOrderActive(active);
+    if (active) return;
+
+    // An order that reaches a terminal state (or a restored order that no
+    // longer exists) must not leave the card's in-memory live activity behind.
+    // Completed history is rendered from persisted activity, not as Pending.
+    stableFxActiveStepRef.current = "deposit";
+    setStableFxActivityStartedAt(null);
+    setStableFxTransactionHash(null);
+    setStableFxOrderId(null);
+    setStableFxSettlementDeadline(null);
+    setStableFxStepsPhase("deposit");
+    setStableFxStepsFailedStep("deposit");
+    setStableFxStepsFailureMessage(null);
+  }, []);
+
   const handleStableFxTransactionProgress = useCallback(
     (progress: StableFxTransactionProgress) => {
       const details = progress.details;
@@ -1534,8 +1551,11 @@ const SwapCard = ({
     ],
   );
 
+  // A symbol can have both a DEX and a StableFX selector entry. Keep the
+  // balances separate by UI identity so a DEX USDC balance never overwrites
+  // the StableFX USDC balance (and vice versa).
   const getEmptySwapTokenBalances = () =>
-    Object.fromEntries(SWAP_SELECTOR_TOKENS.map((token) => [token.symbol, 0]));
+    Object.fromEntries(SWAP_SELECTOR_TOKENS.map((token) => [token.id, 0]));
 
   // Actual wallet balances for tokens currently supported on the swap card
   const [tokenBalances, setTokenBalances] = useState<Record<string, number>>(
@@ -1604,16 +1624,19 @@ const SwapCard = ({
         ? "Searching for best route"
         : receiveUsdValueLabel;
   const fetchSwapTokenBalance = useCallback(
-    async (tokenSymbol: SwapTokenSymbol) => {
-      // StableFX deposits always settle on Arc mainnet, even if the surrounding
-      // DEX UI is currently set to testnet.
-      const balanceRpcUrl = selectedStableFxPair
+    async (token: SwapToken) => {
+      const tokenSymbol = token.symbol;
+      // StableFX balances always live on Arc mainnet. This must be based on
+      // the token being displayed, not whether the user has already selected
+      // the other side of an FX pair in the form.
+      const isStableFxToken =
+        token.stableFx === true && isStableFxCurrency(tokenSymbol);
+      const balanceRpcUrl = isStableFxToken
         ? getArcRpcProxyPath("mainnet")
         : arcRpcUrl;
-      const stableFxTokenAddress =
-        selectedStableFxPair && isStableFxCurrency(tokenSymbol)
-          ? STABLEFX_ARC_MAINNET_TOKENS[tokenSymbol].address
-          : undefined;
+      const stableFxTokenAddress = isStableFxToken
+        ? STABLEFX_ARC_MAINNET_TOKENS[tokenSymbol].address
+        : undefined;
       const tokenAddress =
         stableFxTokenAddress ??
         getArcSwapTokenAddress(tokenSymbol, arcNetworkMode);
@@ -1622,7 +1645,7 @@ const SwapCard = ({
         return 0;
       }
 
-      if (tokenSymbol === "USDC" && !selectedStableFxPair) {
+      if (tokenSymbol === "USDC" && !isStableFxToken) {
         const nativeBalance = await callArcRpc<string>(
           "eth_getBalance",
           [user.wallet.address, "latest"],
@@ -1657,10 +1680,15 @@ const SwapCard = ({
       }
 
       return Number.parseFloat(
-        formatUnits(BigInt(rawBalance), TOKEN_DECIMALS[tokenSymbol] ?? 18),
+        formatUnits(
+          BigInt(rawBalance),
+          isStableFxToken
+            ? STABLEFX_ARC_MAINNET_TOKENS[tokenSymbol].decimals
+            : (TOKEN_DECIMALS[tokenSymbol] ?? 18),
+        ),
       );
     },
-    [arcNetworkMode, arcRpcUrl, selectedStableFxPair, user?.wallet?.address],
+    [arcNetworkMode, arcRpcUrl, user?.wallet?.address],
   );
 
   const fetchUserBalances = useCallback(async () => {
@@ -1673,11 +1701,9 @@ const SwapCard = ({
     setIsLoadingBalances(true);
     try {
       const balanceEntries = await Promise.all(
-        Array.from(
-          new Set(SWAP_SELECTOR_TOKENS.map((token) => token.symbol)),
-        ).map(
-          async (symbol) =>
-            [symbol, await fetchSwapTokenBalance(symbol)] as const,
+        SWAP_SELECTOR_TOKENS.map(
+          async (token) =>
+            [token.id, await fetchSwapTokenBalance(token)] as const,
         ),
       );
       if (requestId !== swapBalanceRequestIdRef.current) {
@@ -1714,18 +1740,18 @@ const SwapCard = ({
   }, [authenticated, fetchUserBalances, isNetworkModeReady, user]);
 
   // Get display balance for a token (actual if available, mock otherwise)
-  const getTokenBalance = (symbol: string): number => {
-    return tokenBalances[symbol] || 0;
+  const getTokenBalance = (token: SwapToken): number => {
+    return tokenBalances[token.id] || 0;
   };
 
-  const getFormattedBalance = (symbol: string): string => {
-    const balance = getTokenBalance(symbol);
+  const getFormattedBalance = (token: SwapToken): string => {
+    const balance = getTokenBalance(token);
     // Use appropriate decimal places based on token type
-    const decimals = symbol === "cirBTC" ? 8 : 2;
+    const decimals = token.symbol === "cirBTC" ? 8 : 2;
     return formatBalance(balance.toString(), decimals);
   };
 
-  const sellTokenBalance = getTokenBalance(sellToken.symbol);
+  const sellTokenBalance = getTokenBalance(sellToken);
   const maxSwapAmount =
     NATIVE_TOKENS.includes(sellToken.symbol) && !selectedStableFxPair
       ? Math.max(0, sellTokenBalance - NATIVE_USDC_GAS_RESERVE)
@@ -2210,14 +2236,14 @@ const SwapCard = ({
 
   // Handle 50% button click
   const handle50Percent = () => {
-    const balance = getTokenBalance(sellToken.symbol);
+    const balance = getTokenBalance(sellToken);
     const fiftyPercent = (balance * 0.5).toFixed(2);
     handleSellAmountChange(fiftyPercent);
   };
 
   // Handle Max button click
   const handleMaxAmount = () => {
-    const balance = getTokenBalance(sellToken.symbol);
+    const balance = getTokenBalance(sellToken);
     const spendableBalance = NATIVE_TOKENS.includes(sellToken.symbol)
       ? Math.max(0, balance - NATIVE_USDC_GAS_RESERVE)
       : balance;
@@ -2508,7 +2534,7 @@ const SwapCard = ({
 
       // Step 1: Validate balance before proceeding
       const sellAmountNum = parseFloat(sellAmount);
-      const balance = getTokenBalance(sellToken.symbol);
+      const balance = getTokenBalance(sellToken);
 
       if (sellAmountNum <= 0) {
         throw new Error("Swap amount must be greater than 0");
@@ -3774,7 +3800,7 @@ const SwapCard = ({
                 <span>
                   {isLoadingBalances
                     ? "Loading..."
-                    : `${getFormattedBalance(sellToken.symbol)} ${sellToken.symbol}`}
+                    : `${getFormattedBalance(sellToken)} ${sellToken.symbol}`}
                 </span>
                 <button
                   onClick={handle50Percent}
@@ -3830,7 +3856,7 @@ const SwapCard = ({
                   <span>
                     {isLoadingBalances
                       ? "Loading..."
-                      : `${getFormattedBalance(receiveToken.symbol)} ${receiveToken.symbol}`}
+                      : `${getFormattedBalance(receiveToken)} ${receiveToken.symbol}`}
                   </span>
                 </div>
               )}
@@ -3866,7 +3892,7 @@ const SwapCard = ({
             selectedToCurrency={stableFxToCurrency}
             selectedAmount={sellAmount === "0.00" ? "" : sellAmount}
             onReceiveAmountChange={setReceiveAmount}
-            onOrderActiveChange={setIsStableFxOrderActive}
+            onOrderActiveChange={handleStableFxOrderActiveChange}
             onReset={resetSwapForm}
             onTransactionProgress={handleStableFxTransactionProgress}
           />

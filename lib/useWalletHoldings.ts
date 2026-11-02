@@ -4,7 +4,7 @@ import type { StaticImageData } from "next/image";
 import { getTokenIcon } from "./tokenIcons";
 import { fetchArcTokenUsdPrices } from "./tokenUsdPrices";
 import { AERO_MAINNET_TOKENS } from "./aeroDex";
-import { readStoredBridgeNetworkMode } from "./bridgeNetworks";
+import { STABLEFX_ARC_MAINNET_TOKENS } from "./stableFx";
 
 export interface WalletHolding {
   token: string;
@@ -18,6 +18,10 @@ export interface WalletHolding {
 const SUPPORTED_PROFILE_TOKENS = [
   { symbol: "EURC", address: AERO_MAINNET_TOKENS.EURC },
   { symbol: "cirBTC", address: AERO_MAINNET_TOKENS.cirBTC },
+  // USDC is already represented by Arc's native balance above and EURC is
+  // already included through the DEX registry. MXNB is the currently enabled
+  // StableFX-only asset, so include its direct Arc contract balance here.
+  { symbol: "MXNB", address: STABLEFX_ARC_MAINNET_TOKENS.MXNB.address },
 ] as const;
 
 export const useWalletHoldings = (walletAddress: string | null) => {
