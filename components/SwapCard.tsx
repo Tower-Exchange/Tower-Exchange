@@ -31,10 +31,8 @@ import {
 } from "@/lib/arcNetwork";
 import { getArcSwapTokenAddress } from "@/lib/aeroDex";
 import { getArcRpcProxyPath } from "@/lib/arcRpc";
-import { isXylonetEnabled } from "@/lib/xylonetEnabled";
 import { isKyberEnabled } from "@/lib/kyberEnabled";
 import { isUniswapEnabled } from "@/lib/uniswapEnabled";
-import { isDe1Enabled } from "@/lib/de1Enabled";
 import { ensureWalletOnArcNetwork } from "@/lib/arcWalletNetwork";
 import {
   useTowerSwap,
@@ -639,16 +637,6 @@ const normalizeSwapRouteDexId = (dexId?: string) => {
   }
 
   if (
-    normalized === "xylonet" ||
-    normalized === "xylo" ||
-    normalized === "xylo-net" ||
-    normalized === "xylonet-adapter" ||
-    normalized.includes("xylonet")
-  ) {
-    return "xylonet-adapter";
-  }
-
-  if (
     normalized === "tower-dex" ||
     normalized === "tower" ||
     normalized === "tower-amm"
@@ -684,16 +672,6 @@ const normalizeSwapRouteDexId = (dexId?: string) => {
     normalized.includes("uniswap")
   ) {
     return "uniswap";
-  }
-
-  if (
-    normalized === "de1" ||
-    normalized === "de1-exchange" ||
-    normalized === "de1exchange" ||
-    normalized === "de¹" ||
-    normalized.includes("de1")
-  ) {
-    return "de1";
   }
 
   return normalized;
@@ -1787,13 +1765,10 @@ const SwapCard = ({
         "tower-dex",
         ...(isKyberEnabled() ? ["kyberswap"] : []),
         ...(isUniswapEnabled() ? ["uniswap"] : []),
-        ...(isDe1Enabled() ? ["de1"] : []),
-        ...(isXylonetEnabled() ? ["xylonet-adapter"] : []),
       ];
     }
 
     const routerIds = [
-      ...(isXylonetEnabled() ? ["xylonet-adapter"] : []),
       "synthra",
     ];
 

@@ -3,6 +3,9 @@
     {
       "path": "../..",
     },
+    {
+      "path": "../../../Tower-Backend",
+    },
   ],
   "settings": {
     "git.ignoreLimitWarning": true,

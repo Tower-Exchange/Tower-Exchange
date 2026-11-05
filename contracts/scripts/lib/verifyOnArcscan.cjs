@@ -27,7 +27,7 @@ const isCloudflareChallenge = (status, text) =>
   );
 
 function getExplorerConfig(networkName) {
-  if (process.env.ARC_EXPLORER_API_URL) {
+  if (networkName !== "arc-mainnet" && process.env.ARC_EXPLORER_API_URL) {
     return {
       apiURL: process.env.ARC_EXPLORER_API_URL.replace(/\/$/, ""),
       browserURL: (process.env.ARC_EXPLORER_URL || "https://explorer.arc.io").replace(
@@ -45,9 +45,16 @@ function getExplorerConfig(networkName) {
   }
 
   return {
-    apiURL: "https://explorer.arc.io/api",
-    browserURL: "https://explorer.arc.io",
+    apiURL: "https://api.etherscan.io/v2/api",
+    browserURL: (process.env.ARC_ETHERSCAN_URL || "https://arc.etherscan.io").replace(
+      /\/$/,
+      "",
+    ),
   };
+}
+
+function getEtherscanApiKey() {
+  return process.env.ETHERSCAN_API_KEY || "";
 }
 
 function getArcscanApiUrl(networkName) {
@@ -334,6 +341,37 @@ async function verifyOnArcscan(hre, {
       "Compile before verify failed:",
       error instanceof Error ? error.message : String(error),
     );
+  }
+
+  // Arc mainnet is now supported by Etherscan V2 under chain ID 5042.
+  // The legacy Arc explorer exposes Blockscout-like paths behind Cloudflare;
+  // those endpoints are not compatible with Etherscan verification and must
+  // never be used as a fallback for mainnet verification.
+  if (hre.network.name === "arc-mainnet") {
+    if (!getEtherscanApiKey()) {
+      throw new Error(
+        "Set ETHERSCAN_API_KEY to an Etherscan API key before verifying on Arc mainnet.",
+      );
+    }
+
+    try {
+      await verifyWithHardhat(hre, {
+        address,
+        constructorArguments,
+        contract,
+      });
+      console.log(`Verified ${label} via Etherscan at ${explorer.browserURL}`);
+      return "verified";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (isAlreadyVerified(message)) {
+        console.log(`Already verified on ${explorer.browserURL}: ${address}`);
+        return "verified";
+      }
+      throw new Error(
+        `Etherscan verification failed for ${label}: ${message}`,
+      );
+    }
   }
 
   const existing = await readVerifiedSource(explorer.apiURL, address).catch(() => ({

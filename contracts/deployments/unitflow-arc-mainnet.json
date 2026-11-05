@@ -5,7 +5,7 @@
   "notes": [
     "Live quotes and swaps still use Arc testnet UnitFlow addresses in lib/unitflowDex.ts.",
     "No Universal Router, Permit2, or UnitFlow WUSDC was published with this set.",
-    "TowerSwapExecutor can call UnitFlowV3Router directly. Do not deploy UnitFlowAdapter until a mainnet WUSDC wrap token exists.",
+    "TowerSwapExecutor can call UnitFlowV3Router directly. Do not deploy a separate UnitFlow adapter.",
     "NFTDescriptor, NonfungibleTokenPositionDescriptor, and V3Migrator are not used by the aggregator.",
     "Leave UNITFLOW_MAINNET_DIRECT_PAIRS empty until UnitFlow seeds supported token pools on 5042."
   ],

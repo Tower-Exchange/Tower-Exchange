@@ -102,19 +102,9 @@ const config = {
     },
   },
   etherscan: {
-    apiKey: {
-      "arc-testnet": "empty",
-      "arc-mainnet": process.env.ARCSCAN_API_KEY || "empty",
-      "base-sepolia": process.env.BASESCAN_API_KEY || "empty",
-      "optimism-sepolia": process.env.OPTIMISMSCAN_API_KEY || "empty",
-      "avalanche-fuji": process.env.SNOWTRACE_API_KEY || "empty",
-      "arbitrum-sepolia": process.env.ARBISCAN_API_KEY || "empty",
-      "ethereum-sepolia": process.env.ETHERSCAN_API_KEY || "empty",
-      "linea-sepolia": process.env.LINEASCAN_API_KEY || "empty",
-      "polygon-amoy": process.env.POLYGONSCAN_API_KEY || "empty",
-      "sonic-testnet": "empty",
-      "unichain-sepolia": "empty",
-    },
+    // A single Etherscan key activates Hardhat Verify's Etherscan V2 API.
+    // The plugin adds chainid=5042 for Arc mainnet automatically.
+    apiKey: process.env.ETHERSCAN_API_KEY || "",
     customChains: [
       {
         network: "arc-testnet",
@@ -128,8 +118,8 @@ const config = {
         network: "arc-mainnet",
         chainId: 5042,
         urls: {
-          apiURL: "https://explorer.arc.io/api",
-          browserURL: "https://explorer.arc.io"
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://arc.etherscan.io"
         }
       },
       {

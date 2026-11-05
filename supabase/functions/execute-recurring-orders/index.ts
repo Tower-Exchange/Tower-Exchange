@@ -95,7 +95,9 @@ const recurringOrderDexId = normalizeDexId(
 const feeCollectorAddress = denoRuntime.env.get("FEE_COLLECTOR_ADDRESS") ?? "";
 
 function recurringOrdersAreDisabled(): boolean {
-  return denoRuntime.env.get("RECURRING_ORDERS_DISABLED") === "true";
+  // AUDIT NOTE: Hard-disabled while recurring orders are redesigned and
+  // re-audited. This must not be made environment-configurable again.
+  return true;
 }
 
 const tokenDecimalsBySymbol: Record<string, number> = {

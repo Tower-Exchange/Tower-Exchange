@@ -63,3 +63,7 @@ frontend-502-outage.md
 docs/legion-integration.md
 scripts/legion-verify-smoke.mjs
 /docs
+!/docs/
+/docs/*
+docs/olympix-remediation-report.md
+docs/openapi-public-swap-updates.md

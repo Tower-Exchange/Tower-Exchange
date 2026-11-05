@@ -150,7 +150,7 @@ async function main() {
     timestamp: new Date().toISOString(),
     blockExplorerUrl:
       hre.network.name === "arc-mainnet"
-        ? `https://explorer.arc.io/address/${executorAddress}`
+        ? `https://arc.etherscan.io/address/${executorAddress}`
         : hre.network.name === "arc-testnet"
           ? `https://testnet.arcscan.app/address/${executorAddress}`
           : null,

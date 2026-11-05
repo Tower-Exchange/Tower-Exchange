@@ -15,7 +15,6 @@ import {
 } from "@/lib/server/towerAiBackend";
 import { handleSwapQuotePost } from "@/app/api/swap/quote/route";
 import { handleSwapBuildTxPost } from "@/app/api/swap/build-tx/route";
-import { isXylonetEnabled } from "@/lib/xylonetEnabled";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,27 +26,18 @@ const SOLANA_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const SOLANA_ADDRESS_IN_TEXT_PATTERN = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g;
 const AI_QUOTE_SYMBOLS = ["USDT", "USDC", "EURC", "CIRBTC"] as const;
 const AI_QUOTE_SYMBOL_SET = new Set<string>(AI_QUOTE_SYMBOLS);
-const AI_SWAP_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow"] as const;
+const AI_SWAP_DEX_IDS = ["synthra", "unitflow"] as const;
 
 type AiQuoteSymbol = (typeof AI_QUOTE_SYMBOLS)[number];
 type AiSwapDexId = (typeof AI_SWAP_DEX_IDS)[number];
 
 const AI_SWAP_DEX_LABELS: Record<AiSwapDexId, string> = {
   synthra: "Synthra",
-  "xylonet-adapter": "Xylonet",
   unitflow: "UnitFlow",
 };
 
 const AI_SWAP_DEX_ALIASES: Record<AiSwapDexId, string[]> = {
   synthra: ["synthra", "synthra dex", "synthra-v3"],
-  "xylonet-adapter": [
-    "xylonet",
-    "xylo net",
-    "xylo",
-    "xylonet dex",
-    "xylonet adapter",
-    "xylonet-adapter",
-  ],
   unitflow: ["unitflow", "unit flow", "unitflow dex", "unitflow-v3"],
 };
 const AI_QUOTE_TOKEN_PATTERN = "(USDT|USDC|EURC|CIRBTC)";
@@ -333,15 +323,6 @@ const normalizeSwapDexId = (dexId?: string | null): AiSwapDexId | undefined => {
     return "unitflow";
   }
 
-  if (
-    normalized === "xylonet" ||
-    normalized === "xylo" ||
-    normalized === "xylo-net" ||
-    normalized.includes("xylonet")
-  ) {
-    return isXylonetEnabled() ? "xylonet-adapter" : undefined;
-  }
-
   return AI_SWAP_DEX_IDS.includes(normalized as AiSwapDexId)
     ? (normalized as AiSwapDexId)
     : undefined;
@@ -396,9 +377,6 @@ const extractSwapDexPreference = (
   }
 
   for (const dexId of AI_SWAP_DEX_IDS) {
-    if (dexId === "xylonet-adapter" && !isXylonetEnabled()) {
-      continue;
-    }
     const aliases = AI_SWAP_DEX_ALIASES[dexId];
     if (
       aliases.some((alias) =>

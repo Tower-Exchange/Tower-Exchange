@@ -194,7 +194,7 @@ async function main() {
     timestamp: new Date().toISOString(),
     blockExplorerUrl:
       network.name === "arc-mainnet"
-        ? `https://explorer.arc.io/address/${adapterAddress}`
+        ? `https://arc.etherscan.io/address/${adapterAddress}`
         : network.name === "arc-testnet"
           ? `https://testnet.arcscan.app/address/${adapterAddress}`
           : null,

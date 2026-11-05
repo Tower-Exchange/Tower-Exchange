@@ -1,0 +1,15 @@
+{
+  "contract": "TowerSwapExecutorV2",
+  "network": "arc-mainnet",
+  "chainId": 5042,
+  "executor": "0x29c39683Bc6Ce1aCE7D9a8daEDA0E9F314eBD2F3",
+  "treasury": "0xb3966683724303400B6fECDa1963825d994B546a",
+  "owner": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "feeBps": 30,
+  "routeTargets": [],
+  "approvalSpenders": [],
+  "deployer": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "timestamp": "2026-11-04T10:44:54.762Z",
+  "blockExplorerUrl": "https://arc.etherscan.io/address/0x29c39683Bc6Ce1aCE7D9a8daEDA0E9F314eBD2F3",
+  "verificationStatus": "verified"
+}

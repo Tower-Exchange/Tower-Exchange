@@ -19,7 +19,11 @@ import {
 
 import { getArcMainnetRpcUrls, getArcRpcUrls } from "@/lib/arcRpc";
 import { getTokenDecimalsByAddress } from "@/lib/swapApiContract";
-import { TOWER_DEX_ID, TOWER_DEX_NAME } from "@/lib/towerDex";
+import {
+  encodeTowerSwapExecution,
+  getTowerSwapExecutorV2Address,
+  isTowerSwapExecutorV2Enabled,
+} from "@/lib/towerSwapExecutorV2";
 import {
   DZAP_ARC_MAINNET_CHAIN_ID,
   DZAP_ARC_ROUTER_ADDRESS,
@@ -37,8 +41,8 @@ export {
 } from "@/lib/dzapClient";
 
 export const DZAP_QUOTE_SOURCE = "dzap" as const;
-export const DZAP_DEX_ID = TOWER_DEX_ID;
-export const DZAP_DEX_NAME = TOWER_DEX_NAME;
+export const DZAP_DEX_ID = "dzap" as const;
+export const DZAP_DEX_NAME = "DZap" as const;
 
 const TOWER_SWAP_FEE_MODE = "tower-swap-executor" as const;
 const DEFAULT_GAS_LIMIT = 800000n;
@@ -216,9 +220,9 @@ export type DzapQuote = {
     type: "single" | "multi";
     rawPath?: string;
     hops: Array<{
-      dexId: typeof TOWER_DEX_ID;
-      dex?: typeof TOWER_DEX_ID;
-      dexName: typeof TOWER_DEX_NAME;
+      dexId: typeof DZAP_DEX_ID;
+      dex?: typeof DZAP_DEX_ID;
+      dexName: typeof DZAP_DEX_NAME;
       dexRouter: string;
       path: string[];
       amountIn: string;
@@ -532,6 +536,8 @@ const DZAP_SWAP_FEE_RECIPIENT =
 
 export function getDzapExecutorAddress(chainId: number): Address | null {
   if (chainId === DZAP_ARC_MAINNET_CHAIN_ID) {
+    const executorV2 = getTowerSwapExecutorV2Address();
+    if (executorV2) return executorV2;
     return (
       resolveOptionalAddress(
         process.env.NEXT_PUBLIC_TOWER_SWAP_EXECUTOR_MAINNET_ADDRESS ||
@@ -555,7 +561,9 @@ export function getDzapExecutorAddress(chainId: number): Address | null {
 export function getDzapAdapterAddress(chainId: number): Address | null {
   if (chainId === DZAP_ARC_MAINNET_CHAIN_ID) {
     return resolveOptionalAddress(
-      process.env.NEXT_PUBLIC_DZAP_ADAPTER_MAINNET_ADDRESS ||
+      process.env.NEXT_PUBLIC_DZAP_ADAPTER_V2_MAINNET_ADDRESS ||
+        process.env.DZAP_ADAPTER_V2_MAINNET_ADDRESS ||
+        process.env.NEXT_PUBLIC_DZAP_ADAPTER_MAINNET_ADDRESS ||
         process.env.DZAP_ADAPTER_MAINNET_ADDRESS,
     );
   }
@@ -1178,13 +1186,20 @@ export async function buildDzapSwapTransaction(params: {
   }
 
   const dzapRouteTarget = getAddress(evmTx.to);
-  if (
-    useAdapterPath &&
-    dzapRouteTarget.toLowerCase() !== getAddress(DZAP_ARC_ROUTER_ADDRESS).toLowerCase() &&
-    dzapRouteTarget.toLowerCase() !== DZAP_PERMIT2_ADDRESS.toLowerCase()
-  ) {
+  // V2 exists only on Arc mainnet. Do not apply its stricter target policy to
+  // a DZap route built for a different source chain.
+  const usesV2Executor =
+    meta.fromChain === DZAP_ARC_MAINNET_CHAIN_ID &&
+    isTowerSwapExecutorV2Enabled();
+  const isAllowedDzapRouteTarget =
+    dzapRouteTarget.toLowerCase() === getAddress(DZAP_ARC_ROUTER_ADDRESS).toLowerCase() ||
+    (!usesV2Executor &&
+      dzapRouteTarget.toLowerCase() === DZAP_PERMIT2_ADDRESS.toLowerCase());
+  if (useAdapterPath && !isAllowedDzapRouteTarget) {
     throw new Error(
-      `DZap swap target ${dzapRouteTarget} is not the DZap diamond or Permit2`,
+      usesV2Executor
+        ? `DZap V2 only supports Diamond route targets, not Permit2 (${dzapRouteTarget}).`
+        : `DZap swap target ${dzapRouteTarget} is not the DZap diamond or Permit2`,
     );
   }
 
@@ -1252,22 +1267,19 @@ export async function buildDzapSwapTransaction(params: {
 
   const swapData =
     adapterCalldata && executorAddress && adapterAddress
-      ? encodeFunctionData({
-          abi: TOWER_SWAP_EXECUTOR_ABI,
-          functionName: "executeSwap",
-          args: [
-            {
-              tokenIn: srcToken,
-              tokenOut: destToken,
-              amountIn,
-              minAmountOut: minOutNative,
-              recipient: userAddress,
-              routeTarget: adapterAddress,
-              approvalSpender: adapterAddress,
-              routeCalldata: adapterCalldata,
-            },
-          ],
-        })
+      ? encodeTowerSwapExecution(
+          {
+            tokenIn: srcToken,
+            tokenOut: destToken,
+            amountIn,
+            minAmountOut: minOutNative,
+            recipient: userAddress,
+            routeTarget: adapterAddress,
+            approvalSpender: adapterAddress,
+            routeCalldata: adapterCalldata,
+          },
+          BigInt(Math.floor(Date.now() / 1000) + 20 * 60),
+        )
       : (evmTx.data as Hex);
 
   const swap: DzapSwapTransaction = {

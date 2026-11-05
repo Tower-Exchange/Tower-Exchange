@@ -206,21 +206,6 @@ export default function DevelopersPage() {
                   }}
                 />
 
-                {/* XyloNet Logo */}
-                <div
-                  className="h-7 sm:h-8 w-[120px] sm:w-[140px] md:w-[170px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"
-                  style={{
-                    maskImage: `url('/assets/developer/developer-xylonet.svg')`,
-                    WebkitMaskImage: `url('/assets/developer/developer-xylonet.svg')`,
-                    maskRepeat: "no-repeat",
-                    WebkitMaskRepeat: "no-repeat",
-                    maskSize: "contain",
-                    WebkitMaskSize: "contain",
-                    maskPosition: "center",
-                    WebkitMaskPosition: "center",
-                  }}
-                />
-
                 {/* Bitget Logo */}
                 <div
                   className="h-7 sm:h-8 w-[120px] sm:w-[140px] md:w-[170px] bg-gradient-to-b from-[#F3F4F6] via-[#9CA3AF] to-[#4B5563] hover:from-white hover:to-gray-300 transition-all cursor-pointer opacity-90 hover:opacity-100 shrink-0"

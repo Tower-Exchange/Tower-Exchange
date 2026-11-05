@@ -149,7 +149,7 @@ async function main() {
   );
   if (unfinished.includes("unavailable")) {
     console.log(
-      "Arc Explorer could not verify yet. Re-run this command, or submit Standard JSON at https://explorer.arc.io",
+      "Arc Etherscan could not verify yet. Re-run this command after confirming ETHERSCAN_API_KEY is set.",
     );
   }
   if (unfinished.length > 0) {

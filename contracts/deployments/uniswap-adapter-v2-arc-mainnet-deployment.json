@@ -1,0 +1,13 @@
+{
+  "contract": "UniswapAdapterV2",
+  "network": "arc-mainnet",
+  "chainId": 5042,
+  "adapter": "0xD66fD081B4c5CEB658a9a6508d16c170F862EEAE",
+  "executor": "0x29c39683Bc6Ce1aCE7D9a8daEDA0E9F314eBD2F3",
+  "owner": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "deployer": "0xe71dD45E7d21409b04b609D0E6C67FFff592d43d",
+  "timestamp": "2026-11-04T14:23:06.688Z",
+  "universalRouter": "0x8702463e73f74d0b6765aBceb314Ef07aCb92650",
+  "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+  "verificationStatus": "verified"
+}

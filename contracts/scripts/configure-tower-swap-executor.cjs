@@ -256,17 +256,6 @@ function savedDzapAdapter() {
   );
 }
 
-function savedLiFiAdapter() {
-  return readJson(
-    path.join(
-      __dirname,
-      "..",
-      "deployments",
-      "lifi-adapter-arc-mainnet-deployment.json",
-    ),
-  );
-}
-
 function savedKyberSwapAdapter() {
   return readJson(
     path.join(
@@ -332,7 +321,6 @@ function resolveAllowlist(kind) {
   const adapter = savedMainnetAdapter()?.adapter;
   const aeroAdapter = savedAeroAdapter()?.adapter;
   const dzapAdapter = savedDzapAdapter()?.adapter;
-  const lifiAdapter = savedLiFiAdapter()?.adapter;
   const kyberAdapter = savedKyberSwapAdapter()?.adapter;
   const uniswapAdapter = savedUniswapAdapter()?.adapter;
   const router = savedMainnetAmm()?.router;
@@ -342,7 +330,6 @@ function resolveAllowlist(kind) {
     adapter,
     aeroAdapter,
     dzapAdapter,
-    lifiAdapter,
     kyberAdapter,
     uniswapAdapter,
     SYNTHRA_MAINNET.universalRouter,
@@ -354,7 +341,6 @@ function resolveAllowlist(kind) {
     adapter,
     aeroAdapter,
     dzapAdapter,
-    lifiAdapter,
     kyberAdapter,
     uniswapAdapter,
     SYNTHRA_MAINNET.permit2,

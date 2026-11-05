@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveSwapBackendUrl } from "@/lib/resolveSwapBackendUrl";
-import { ARC_NETWORK_CHAIN_ID, TOKEN_CONTRACTS, TOKEN_DECIMALS } from "@/lib/arcNetwork";
+import { ARC_NETWORK_CHAIN_ID, TOKEN_CONTRACTS } from "@/lib/arcNetwork";
 import { getDefaultBridgeNetworkMode } from "@/lib/bridgeNetworks";
 import { withFrontendOriginGate } from "@/lib/server/frontendRequestGuard";
 import { isPositiveDecimalAmount } from "@/lib/positiveAmount";
@@ -32,13 +32,6 @@ import {
   type DzapQuote,
 } from "@/lib/dzapDex";
 import {
-  getXylonetQuote,
-  isXylonetEnabled,
-  XYLONET_DEX_ID,
-  XYLONET_DEX_NAME,
-  type XylonetQuote,
-} from "@/lib/xylonetDex";
-import {
   getKyberQuote,
   isKyberEnabled,
   KYBER_DEX_ID,
@@ -54,14 +47,6 @@ import {
   normalizeUniswapDexId,
   type UniswapQuote,
 } from "@/lib/uniswapDex";
-import {
-  getDe1Quote,
-  isDe1Enabled,
-  DE1_DEX_ID,
-  DE1_DEX_NAME,
-  normalizeDe1DexId,
-  type De1Quote,
-} from "@/lib/de1Dex";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -107,10 +92,8 @@ type BackendQuote = {
   };
   routeOptions?: RouteOption[];
   dzap?: DzapQuote["dzap"];
-  xylonet?: XylonetQuote["xylonet"];
   kyber?: KyberQuote["kyber"];
   uniswap?: UniswapQuote["uniswap"];
-  de1?: De1Quote["de1"];
 };
 
 type RouteOption = {
@@ -132,9 +115,8 @@ const SWAPS_DISABLED_RESPONSE = {
   details:
     "Tower swaps are paused while the TowerSwapExecutor migration is being verified.",
 };
-const BACKEND_DEX_IDS = ["synthra", "xylonet-adapter", "unitflow", "tower-dex"] as const;
+const BACKEND_DEX_IDS = ["synthra", "unitflow", "tower-dex"] as const;
 type BackendDexId = (typeof BACKEND_DEX_IDS)[number];
-const XYLONET_NATIVE_USDC_DECIMALS = 6;
 const PRIMARY_BACKEND_QUOTE_TIMEOUT_MS = 5_000;
 const BACKEND_DEX_FALLBACK_TIMEOUT_MS = 5_000;
 const EVM_ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
@@ -269,29 +251,6 @@ const dzapQuoteToBackendQuote = (quote: DzapQuote): BackendQuote => ({
   route: quote.route,
 });
 
-const xylonetQuoteToBackendQuote = (quote: XylonetQuote): BackendQuote => ({
-  inputToken: quote.inputToken,
-  outputToken: quote.outputToken,
-  inputAmount: quote.inputAmount,
-  swapInputAmount: quote.swapInputAmount,
-  outputAmount: quote.outputAmount,
-  minOut: quote.minOut,
-  inputAmountNative: quote.inputAmountNative,
-  swapInputAmountNative: quote.swapInputAmountNative,
-  outputAmountNative: quote.outputAmountNative,
-  minOutNative: quote.minOutNative,
-  priceImpact: quote.priceImpact,
-  gasEstimate: quote.gasEstimate,
-  slippage: quote.slippage,
-  feeMode: quote.feeMode,
-  feeBps: quote.feeBps,
-  feeRecipient: quote.feeRecipient,
-  platformFeeAmount: quote.platformFeeAmount,
-  platformFeeAmountNative: quote.platformFeeAmountNative,
-  xylonet: quote.xylonet,
-  route: quote.route,
-});
-
 const kyberQuoteToBackendQuote = (quote: KyberQuote): BackendQuote => ({
   inputToken: quote.inputToken,
   outputToken: quote.outputToken,
@@ -312,29 +271,6 @@ const kyberQuoteToBackendQuote = (quote: KyberQuote): BackendQuote => ({
   platformFeeAmount: quote.platformFeeAmount,
   platformFeeAmountNative: quote.platformFeeAmountNative,
   kyber: quote.kyber,
-  route: quote.route,
-});
-
-const de1QuoteToBackendQuote = (quote: De1Quote): BackendQuote => ({
-  inputToken: quote.inputToken,
-  outputToken: quote.outputToken,
-  inputAmount: quote.inputAmount,
-  swapInputAmount: quote.swapInputAmount,
-  outputAmount: quote.outputAmount,
-  minOut: quote.minOut,
-  inputAmountNative: quote.inputAmountNative,
-  swapInputAmountNative: quote.swapInputAmountNative,
-  outputAmountNative: quote.outputAmountNative,
-  minOutNative: quote.minOutNative,
-  priceImpact: quote.priceImpact,
-  gasEstimate: quote.gasEstimate,
-  slippage: quote.slippage,
-  feeMode: quote.feeMode,
-  feeBps: quote.feeBps,
-  feeRecipient: quote.feeRecipient,
-  platformFeeAmount: quote.platformFeeAmount,
-  platformFeeAmountNative: quote.platformFeeAmountNative,
-  de1: quote.de1,
   route: quote.route,
 });
 
@@ -440,28 +376,6 @@ async function fetchDzapAggregatorQuote(params: {
   });
 
   return quote ? dzapQuoteToBackendQuote(quote) : null;
-}
-
-async function fetchXylonetAggregatorQuote(params: {
-  inputToken: string;
-  outputToken: string;
-  inputAmount: string;
-  slippageTolerance: number;
-  chainId: number;
-}): Promise<BackendQuote | null> {
-  if (!isXylonetEnabled()) {
-    return null;
-  }
-
-  const quote = await getXylonetQuote({
-    inputToken: params.inputToken,
-    outputToken: params.outputToken,
-    inputAmount: params.inputAmount,
-    slippageBps: params.slippageTolerance,
-    chainId: params.chainId,
-  });
-
-  return quote ? xylonetQuoteToBackendQuote(quote) : null;
 }
 
 async function supplementWithDzapQuote(params: {
@@ -627,119 +541,6 @@ async function supplementWithUniswapQuote(params: {
   };
 }
 
-async function fetchDe1AggregatorQuote(params: {
-  inputToken: string;
-  outputToken: string;
-  inputAmount: string;
-  slippageTolerance: number;
-  chainId: number;
-}): Promise<BackendQuote | null> {
-  if (!isDe1Enabled()) {
-    return null;
-  }
-
-  try {
-    const quote = await getDe1Quote({
-      inputToken: params.inputToken,
-      outputToken: params.outputToken,
-      inputAmount: params.inputAmount,
-      slippageBps: params.slippageTolerance,
-      chainId: params.chainId,
-    });
-
-    return quote ? de1QuoteToBackendQuote(quote) : null;
-  } catch (error) {
-    console.warn("[swap/quote] De1 quote failed:", error);
-    return null;
-  }
-}
-
-async function supplementWithDe1Quote(params: {
-  inputToken: string;
-  outputToken: string;
-  inputAmount: string;
-  slippageTolerance: number;
-  chainId: number;
-  requestedDexId?: string;
-  quotes: BackendQuote[];
-  routeOptions: RouteOption[];
-}) {
-  if (params.requestedDexId && params.requestedDexId !== DE1_DEX_ID) {
-    return {
-      quotes: params.quotes,
-      routeOptions: params.routeOptions,
-    };
-  }
-
-  const hasDe1Quote = params.routeOptions.some(
-    (option) => normalizeDexId(option.dexId || option.dexName) === DE1_DEX_ID,
-  );
-  if (hasDe1Quote) {
-    return {
-      quotes: params.quotes,
-      routeOptions: params.routeOptions,
-    };
-  }
-
-  const de1Quote = await fetchDe1AggregatorQuote(params);
-  if (!de1Quote) {
-    return {
-      quotes: params.quotes,
-      routeOptions: params.routeOptions,
-    };
-  }
-
-  const de1RouteOption = routeOptionFromQuote(de1Quote);
-
-  return {
-    quotes: dedupeQuotesByDex([...params.quotes, de1Quote]),
-    routeOptions: dedupeRouteOptions([...params.routeOptions, de1RouteOption]),
-  };
-}
-
-async function supplementWithXylonetQuote(params: {
-  inputToken: string;
-  outputToken: string;
-  inputAmount: string;
-  slippageTolerance: number;
-  chainId: number;
-  requestedDexId?: string;
-  quotes: BackendQuote[];
-  routeOptions: RouteOption[];
-}) {
-  if (params.requestedDexId && params.requestedDexId !== XYLONET_DEX_ID) {
-    return {
-      quotes: params.quotes,
-      routeOptions: params.routeOptions,
-    };
-  }
-
-  const hasXylonetQuote = params.routeOptions.some(
-    (option) => normalizeDexId(option.dexId || option.dexName) === XYLONET_DEX_ID,
-  );
-  if (hasXylonetQuote) {
-    return {
-      quotes: params.quotes,
-      routeOptions: params.routeOptions,
-    };
-  }
-
-  const xylonetQuote = await fetchXylonetAggregatorQuote(params);
-  if (!xylonetQuote) {
-    return {
-      quotes: params.quotes,
-      routeOptions: params.routeOptions,
-    };
-  }
-
-  const xylonetRouteOption = routeOptionFromQuote(xylonetQuote);
-
-  return {
-    quotes: dedupeQuotesByDex([...params.quotes, xylonetQuote]),
-    routeOptions: dedupeRouteOptions([...params.routeOptions, xylonetRouteOption]),
-  };
-}
-
 async function supplementWithLocalAeroQuote(params: {
   inputToken: string;
   outputToken: string;
@@ -830,16 +631,6 @@ const normalizeDexId = (dexId?: string) => {
     return "unitflow";
   }
 
-  if (
-    normalized === "xylonet" ||
-    normalized === "xylo" ||
-    normalized === "xylo-net" ||
-    normalized === "xylonet-adapter" ||
-    normalized.includes("xylonet")
-  ) {
-    return "xylonet-adapter";
-  }
-
   if (normalizeTowerDexId(normalized) === TOWER_DEX_ID) {
     return TOWER_DEX_ID;
   }
@@ -854,10 +645,6 @@ const normalizeDexId = (dexId?: string) => {
 
   if (normalizeUniswapDexId(normalized) === UNISWAP_DEX_ID) {
     return UNISWAP_DEX_ID;
-  }
-
-  if (normalizeDe1DexId(normalized) === DE1_DEX_ID) {
-    return DE1_DEX_ID;
   }
 
   return normalized;
@@ -878,44 +665,7 @@ const getBackendDexIds = (
   }) as BackendDexId[];
 };
 
-const convertAmountByDecimals = (
-  amount: bigint,
-  fromDecimals: number,
-  toDecimals: number,
-) => {
-  if (fromDecimals === toDecimals) {
-    return amount;
-  }
-
-  return fromDecimals < toDecimals
-    ? amount * 10n ** BigInt(toDecimals - fromDecimals)
-    : amount / 10n ** BigInt(fromDecimals - toDecimals);
-};
-
-const buildBackendQuoteBody = (body: Record<string, unknown>) => {
-  const dexId = normalizeDexId(String(body.dexId || ""));
-  const inputToken =
-    typeof body.inputToken === "string" ? body.inputToken : undefined;
-  const inputAmount =
-    typeof body.inputAmount === "string" ? body.inputAmount : undefined;
-
-  if (
-    dexId === "xylonet-adapter" &&
-    inputToken?.toLowerCase() === TOKEN_CONTRACTS.USDC.toLowerCase() &&
-    inputAmount
-  ) {
-    return {
-      ...body,
-      inputAmount: convertAmountByDecimals(
-        BigInt(inputAmount),
-        TOKEN_DECIMALS.USDC,
-        XYLONET_NATIVE_USDC_DECIMALS,
-      ).toString(),
-    };
-  }
-
-  return body;
-};
+const buildBackendQuoteBody = (body: Record<string, unknown>) => body;
 
 const routeOptionFromQuote = (quote: QuoteLike): RouteOption => {
   const hop = quote.route?.hops?.[0];
@@ -929,9 +679,7 @@ const routeOptionFromQuote = (quote: QuoteLike): RouteOption => {
         ? "Synthra"
         : normalizedDexId === "unitflow"
           ? "UnitFlow"
-          : normalizedDexId === XYLONET_DEX_ID
-            ? XYLONET_DEX_NAME
-            : normalizedDexId === TOWER_DEX_ID
+          : normalizedDexId === TOWER_DEX_ID
               ? TOWER_DEX_NAME
               : normalizedDexId === AERO_DEX_ID
                 ? AERO_DEX_NAME
@@ -939,8 +687,6 @@ const routeOptionFromQuote = (quote: QuoteLike): RouteOption => {
                 ? KYBER_DEX_NAME
               : normalizedDexId === UNISWAP_DEX_ID
                 ? UNISWAP_DEX_NAME
-              : normalizedDexId === DE1_DEX_ID
-                ? DE1_DEX_NAME
               : hop?.dexName || hop?.dexId || "Unknown Router",
     outputAmount: quote.outputAmount,
     routeType: quote.route?.type || "single",
@@ -1403,7 +1149,7 @@ export async function handleSwapQuotePost(request: NextRequest) {
     }
 
     if (isArcMainnet) {
-      const [aeroResult, dzapResult, xylonetResult, kyberResult, uniswapResult, de1Result] =
+      const [aeroResult, dzapResult, kyberResult, uniswapResult] =
         await Promise.all([
         supplementWithLocalAeroQuote({
           inputToken: resolvedInputToken,
@@ -1415,16 +1161,6 @@ export async function handleSwapQuotePost(request: NextRequest) {
           routeOptions: backendResult.routeOptions,
         }),
         supplementWithDzapQuote({
-          inputToken: resolvedInputToken,
-          outputToken: resolvedOutputToken,
-          inputAmount,
-          slippageTolerance: resolvedSlippageBps,
-          chainId: resolvedChainId,
-          requestedDexId: backendDexRequest,
-          quotes: backendResult.quotes,
-          routeOptions: backendResult.routeOptions,
-        }),
-        supplementWithXylonetQuote({
           inputToken: resolvedInputToken,
           outputToken: resolvedOutputToken,
           inputAmount,
@@ -1454,34 +1190,20 @@ export async function handleSwapQuotePost(request: NextRequest) {
           quotes: backendResult.quotes,
           routeOptions: backendResult.routeOptions,
         }),
-        supplementWithDe1Quote({
-          inputToken: resolvedInputToken,
-          outputToken: resolvedOutputToken,
-          inputAmount,
-          slippageTolerance: resolvedSlippageBps,
-          chainId: resolvedChainId,
-          requestedDexId: backendDexRequest,
-          quotes: backendResult.quotes,
-          routeOptions: backendResult.routeOptions,
-        }),
       ]);
 
       backendResult = {
         quotes: dedupeQuotesByDex([
           ...aeroResult.quotes,
           ...dzapResult.quotes,
-          ...xylonetResult.quotes,
           ...kyberResult.quotes,
           ...uniswapResult.quotes,
-          ...de1Result.quotes,
         ]),
         routeOptions: dedupeRouteOptions([
           ...aeroResult.routeOptions,
           ...dzapResult.routeOptions,
-          ...xylonetResult.routeOptions,
           ...kyberResult.routeOptions,
           ...uniswapResult.routeOptions,
-          ...de1Result.routeOptions,
         ]),
       };
     } else {

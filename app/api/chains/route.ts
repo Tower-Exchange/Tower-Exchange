@@ -131,7 +131,7 @@ const SUPPORTED_CHAINS = [
     type: "evm",
     nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
     rpcUrl: "https://rpc.mainnet.arc.io",
-    explorerUrl: "https://explorer.arc.io",
+    explorerUrl: "https://arc.etherscan.io",
     supportedFeatures: ["bridge", "rpc-proxy", "wallet-balance"],
   },
   {

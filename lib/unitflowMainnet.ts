@@ -9,13 +9,13 @@ import type { Address } from "viem";
  * app is ready to switch networks.
  *
  * UnitFlow published a V3 factory, SwapRouter, and Quoter. There is no
- * Universal Router, Permit2, or WUSDC in this set, so Tower does not need a
- * mainnet UnitFlowAdapter yet.
+ * Universal Router, Permit2, or WUSDC in this set, so Tower should use the
+ * direct V3 router rather than deploy another UnitFlow adapter.
  */
 export const UNITFLOW_MAINNET_CHAIN_ID = 5042;
 export const UNITFLOW_MAINNET_PUBLIC_RPC_URL = "https://rpc.mainnet.arc.io";
 export const UNITFLOW_MAINNET_PROXY_RPC_PATH = "/api/rpc/5042";
-export const UNITFLOW_MAINNET_EXPLORER_URL = "https://explorer.arc.io";
+export const UNITFLOW_MAINNET_EXPLORER_URL = "https://arc.etherscan.io";
 
 export const unitFlowArcMainnet = {
   id: UNITFLOW_MAINNET_CHAIN_ID,

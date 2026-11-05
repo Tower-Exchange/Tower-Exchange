@@ -23,12 +23,10 @@ import routeIcon from "@/public/assets/route icon.svg";
 import transferTimeIcon from "@/public/assets/transfertime icon.svg";
 import synthraLogo from "@/public/assets/synthralogo.svg";
 import unitflowLogo from "@/public/assets/unitflow.svg";
-import xylonetLogo from "@/public/assets/xylonetlogo.svg";
 import circleLogo from "@/public/assets/circlelogo.svg";
 import fromAddressIcon from "@/public/assets/fromaddress icon.svg";
 import toAddressIcon from "@/public/assets/toaddress icon.svg";
 import towerLogo from "@/public/assets/Tower Logo.svg";
-import de1Logo from "@/public/assets/de1.svg";
 import aeroLogo from "@/public/assets/aero-icon 1.svg";
 import kyberLogo from "@/public/assets/kyber-logo-knc 1.svg";
 import uniswapLogo from "@/public/assets/Uniswap_icon_pink 1.svg";
@@ -100,20 +98,6 @@ const getRouteLogo = (routeLabel: string): ActivityDetailsImage => {
 
   if (normalizedRouteLabel.includes("tower")) {
     return towerLogo;
-  }
-
-  if (
-    normalizedRouteLabel.includes("de1") ||
-    normalizedRouteLabel.includes("de¹")
-  ) {
-    return de1Logo;
-  }
-
-  if (
-    normalizedRouteLabel.includes("xylonet") ||
-    normalizedRouteLabel.includes("xylo")
-  ) {
-    return xylonetLogo;
   }
 
   if (normalizedRouteLabel.includes("cctp")) {

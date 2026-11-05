@@ -161,7 +161,7 @@ const arcMainnet = {
     },
   },
   blockExplorers: {
-    default: { name: "Arc Explorer", url: "https://explorer.arc.io" },
+    default: { name: "ArcScan", url: "https://arc.etherscan.io" },
   },
   testnet: false,
 } as const;

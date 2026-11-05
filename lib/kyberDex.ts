@@ -16,6 +16,11 @@ import {
   aeroArcMainnet,
 } from "@/lib/aeroDex";
 import { getArcMainnetRpcUrls } from "@/lib/arcRpc";
+import {
+  encodeTowerSwapExecution,
+  getTowerSwapExecutorV2Address,
+  isTowerSwapExecutorV2Enabled,
+} from "@/lib/towerSwapExecutorV2";
 import { isKyberEnabled } from "@/lib/kyberEnabled";
 import { getTokenDecimalsByAddress } from "@/lib/swapApiContract";
 
@@ -450,11 +455,14 @@ const isAllowedKyberRouteTarget = (target: Address) => {
   return (
     normalized === KYBER_META_AGGREGATION_ROUTER_V2.toLowerCase() ||
     normalized === KYBER_AGGREGATION_EXECUTOR_PROXY.toLowerCase() ||
-    normalized === KYBER_PERMIT2_ADDRESS.toLowerCase()
+    (!isTowerSwapExecutorV2Enabled() &&
+      normalized === KYBER_PERMIT2_ADDRESS.toLowerCase())
   );
 };
 
 export function getKyberExecutorAddress(): Address {
+  const executorV2 = getTowerSwapExecutorV2Address();
+  if (executorV2) return executorV2;
   return (
     resolveOptionalAddress(
       process.env.NEXT_PUBLIC_TOWER_SWAP_EXECUTOR_MAINNET_ADDRESS ||
@@ -465,7 +473,9 @@ export function getKyberExecutorAddress(): Address {
 
 export function getKyberAdapterAddress(): Address | null {
   return resolveOptionalAddress(
-    process.env.NEXT_PUBLIC_KYBERSWAP_ADAPTER_MAINNET_ADDRESS ||
+    process.env.NEXT_PUBLIC_KYBERSWAP_ADAPTER_V2_MAINNET_ADDRESS ||
+      process.env.KYBERSWAP_ADAPTER_V2_MAINNET_ADDRESS ||
+      process.env.NEXT_PUBLIC_KYBERSWAP_ADAPTER_MAINNET_ADDRESS ||
       process.env.KYBERSWAP_ADAPTER_MAINNET_ADDRESS ||
       process.env.NEXT_PUBLIC_KYBERSWAP_ADAPTER_ADDRESS,
   );
@@ -1099,22 +1109,19 @@ export async function buildKyberSwapTransaction(params: {
 
   const swapData =
     adapterCalldata && adapterAddress
-      ? encodeFunctionData({
-          abi: TOWER_SWAP_EXECUTOR_ABI,
-          functionName: "executeSwap",
-          args: [
-            {
-              tokenIn: srcToken,
-              tokenOut: destToken,
-              amountIn,
-              minAmountOut: minOutNative,
-              recipient: userAddress,
-              routeTarget: adapterAddress,
-              approvalSpender: adapterAddress,
-              routeCalldata: adapterCalldata,
-            },
-          ],
-        })
+      ? encodeTowerSwapExecution(
+          {
+            tokenIn: srcToken,
+            tokenOut: destToken,
+            amountIn,
+            minAmountOut: minOutNative,
+            recipient: userAddress,
+            routeTarget: adapterAddress,
+            approvalSpender: adapterAddress,
+            routeCalldata: adapterCalldata,
+          },
+          BigInt(Math.floor(Date.now() / 1000) + 20 * 60),
+        )
       : encoded.data;
 
   const feeRecipient = params.quote.feeRecipient

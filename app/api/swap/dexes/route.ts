@@ -8,12 +8,6 @@ import {
 } from "@/lib/towerDex";
 import { getAeroDexInfo, AERO_DEX_ID, AERO_DEX_NAME } from "@/lib/aeroDex";
 import {
-  getXylonetDexInfo,
-  isXylonetEnabled,
-  XYLONET_DEX_ID,
-  XYLONET_DEX_NAME,
-} from "@/lib/xylonetDex";
-import {
   getKyberDexInfo,
   isKyberEnabled,
   KYBER_DEX_ID,
@@ -25,12 +19,6 @@ import {
   UNISWAP_DEX_ID,
   UNISWAP_DEX_NAME,
 } from "@/lib/uniswapDex";
-import {
-  getDe1DexInfo,
-  isDe1Enabled,
-  DE1_DEX_ID,
-  DE1_DEX_NAME,
-} from "@/lib/de1Dex";
 import { getUnitFlowDexInfo } from '@/lib/unitflowDex';
 import { resolveSwapBackendUrl } from '@/lib/resolveSwapBackendUrl';
 import { withFrontendOriginGate } from "@/lib/server/frontendRequestGuard";
@@ -52,7 +40,15 @@ type DexInfo = {
   poolAddresses?: readonly string[];
 };
 
-const HIDDEN_DEX_IDS = new Set(["swaparc", "quantum-exchange"]);
+const HIDDEN_DEX_IDS = new Set([
+  "swaparc",
+  "quantum-exchange",
+  "xylonet",
+  "xylonet-adapter",
+  "lifi",
+  "de1",
+  "de1-exchange",
+]);
 const SWAPS_DISABLED = process.env.SWAPS_DISABLED !== "false";
 const SWAPS_DISABLED_MESSAGE =
   "Tower swaps are paused while the TowerSwapExecutor migration is being verified.";
@@ -99,13 +95,6 @@ const getCanonicalAeroDex = (): DexInfo => ({
   enabled: true,
 });
 
-const getCanonicalXylonetDex = (): DexInfo => ({
-  ...getXylonetDexInfo(),
-  id: XYLONET_DEX_ID,
-  name: XYLONET_DEX_NAME,
-  enabled: isXylonetEnabled(),
-});
-
 const getCanonicalKyberDex = (): DexInfo => ({
   ...getKyberDexInfo(),
   id: KYBER_DEX_ID,
@@ -118,13 +107,6 @@ const getCanonicalUniswapDex = (): DexInfo => ({
   id: UNISWAP_DEX_ID,
   name: UNISWAP_DEX_NAME,
   enabled: isUniswapEnabled(),
-});
-
-const getCanonicalDe1Dex = (): DexInfo => ({
-  ...getDe1DexInfo(),
-  id: DE1_DEX_ID,
-  name: DE1_DEX_NAME,
-  enabled: isDe1Enabled(),
 });
 
 const isExecutorUnsupportedDexId = (id: string) =>
@@ -171,20 +153,6 @@ const normalizeDex = (dex: DexInfo): DexInfo => {
   }
 
   if (
-    id === XYLONET_DEX_ID ||
-    id === "xylonet" ||
-    name.includes("xylonet") ||
-    name.includes("xylo")
-  ) {
-    return {
-      ...dex,
-      id: XYLONET_DEX_ID,
-      name: XYLONET_DEX_NAME,
-      enabled: dex.enabled !== false,
-    };
-  }
-
-  if (
     id === KYBER_DEX_ID ||
     id === "kyber" ||
     name.includes("kyber")
@@ -211,19 +179,6 @@ const normalizeDex = (dex: DexInfo): DexInfo => {
     };
   }
 
-  if (
-    id === DE1_DEX_ID ||
-    id === "de1-exchange" ||
-    name.includes("de1")
-  ) {
-    return {
-      ...dex,
-      id: DE1_DEX_ID,
-      name: DE1_DEX_NAME,
-      enabled: dex.enabled !== false,
-    };
-  }
-
   return dex;
 };
 
@@ -238,7 +193,11 @@ const getVisibleDexes = (dexes: DexInfo[]) => {
     if (
       HIDDEN_DEX_IDS.has(id) ||
       name.includes("swaparc") ||
-      name.includes("quantum")
+      name.includes("quantum") ||
+      name.includes("xylonet") ||
+      name.includes("xylo") ||
+      name.includes("li.fi") ||
+      name.includes("de1")
     ) {
       continue;
     }
@@ -267,19 +226,15 @@ export async function getSwapDexesResponse() {
     const unitFlowDex = getCanonicalUnitFlowDex();
     const towerDex = isTowerDexEnabled() ? getCanonicalTowerDex() : null;
     const aeroDex = getCanonicalAeroDex();
-    const xylonetDex = isXylonetEnabled() ? getCanonicalXylonetDex() : null;
     const kyberDex = isKyberEnabled() ? getCanonicalKyberDex() : null;
     const uniswapDex = isUniswapEnabled() ? getCanonicalUniswapDex() : null;
-    const de1Dex = isDe1Enabled() ? getCanonicalDe1Dex() : null;
     const localDexes = [
       synthraDex,
       unitFlowDex,
       ...(towerDex ? [towerDex] : []),
       aeroDex,
-      ...(xylonetDex ? [xylonetDex] : []),
       ...(kyberDex ? [kyberDex] : []),
       ...(uniswapDex ? [uniswapDex] : []),
-      ...(de1Dex ? [de1Dex] : []),
     ];
 
     if (SWAPS_DISABLED) {
@@ -334,10 +289,8 @@ export async function getSwapDexesResponse() {
   } catch (error) {
     console.error('Error fetching DEXes:', error);
     const towerDex = isTowerDexEnabled() ? [getCanonicalTowerDex()] : [];
-    const xylonetDex = isXylonetEnabled() ? [getCanonicalXylonetDex()] : [];
     const kyberDex = isKyberEnabled() ? [getCanonicalKyberDex()] : [];
     const uniswapDex = isUniswapEnabled() ? [getCanonicalUniswapDex()] : [];
-    const de1Dex = isDe1Enabled() ? [getCanonicalDe1Dex()] : [];
     return NextResponse.json({
       success: true,
       data: [
@@ -345,10 +298,8 @@ export async function getSwapDexesResponse() {
         getCanonicalUnitFlowDex(),
         ...towerDex,
         getCanonicalAeroDex(),
-        ...xylonetDex,
         ...kyberDex,
         ...uniswapDex,
-        ...de1Dex,
       ],
     });
   }

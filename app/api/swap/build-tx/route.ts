@@ -13,10 +13,6 @@ import {
   isDzapQuote,
 } from "@/lib/dzapDex";
 import {
-  buildXylonetSwapTransaction,
-  isXylonetQuote,
-} from "@/lib/xylonetDex";
-import {
   buildKyberSwapTransaction,
   isKyberQuote,
 } from "@/lib/kyberDex";
@@ -24,10 +20,6 @@ import {
   buildUniswapSwapTransaction,
   isUniswapQuote,
 } from "@/lib/uniswapDex";
-import {
-  buildDe1SwapTransaction,
-  isDe1Quote,
-} from "@/lib/de1Dex";
 import { withFrontendOriginGate } from "@/lib/server/frontendRequestGuard";
 import { isPositiveDecimalAmount } from "@/lib/positiveAmount";
 import {
@@ -127,9 +119,7 @@ const refreshSwapQuote = async (
           ? 5042
           : isDzapQuote(quote)
             ? quote.dzap.fromChain
-            : isXylonetQuote(quote)
-              ? quote.xylonet.fromChain
-              : isKyberQuote(quote)
+            : isKyberQuote(quote)
                 ? quote.kyber.fromChain
               : (typeof quote.chainId === "number" && quote.chainId > 0 ? quote.chainId : 5042),
       }),
@@ -194,21 +184,15 @@ export async function handleSwapBuildTxPost(
     );
     const canReuseSubmittedDzapQuote =
       isDzapQuote(submittedQuote) && !getExpiredQuoteError(submittedQuote);
-    const canReuseSubmittedXylonetQuote =
-      isXylonetQuote(submittedQuote) && !getExpiredQuoteError(submittedQuote);
     const canReuseSubmittedKyberQuote =
       isKyberQuote(submittedQuote) && !getExpiredQuoteError(submittedQuote);
     const canReuseSubmittedUniswapQuote =
       isUniswapQuote(submittedQuote) && !getExpiredQuoteError(submittedQuote);
-    const canReuseSubmittedDe1Quote =
-      isDe1Quote(submittedQuote) && !getExpiredQuoteError(submittedQuote);
     if (
       !refreshed.ok &&
       !canReuseSubmittedDzapQuote &&
-      !canReuseSubmittedXylonetQuote &&
       !canReuseSubmittedKyberQuote &&
-      !canReuseSubmittedUniswapQuote &&
-      !canReuseSubmittedDe1Quote
+      !canReuseSubmittedUniswapQuote
     ) {
       return refreshed.error;
     }
@@ -241,29 +225,6 @@ export async function handleSwapBuildTxPost(
       }
 
       const transactions = await buildDzapSwapTransaction({
-        quote: freshQuote,
-        userAddress,
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: boundBuildTxApprovals(transactions, exactApprovalAmount),
-      });
-    }
-
-    if (isXylonetQuote(freshQuote)) {
-      if (!userAddress) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Missing userAddress for XyloNet swap",
-            code: SWAP_API_ERROR_CODES.INVALID_REQUEST,
-          },
-          { status: 400 },
-        );
-      }
-
-      const transactions = await buildXylonetSwapTransaction({
         quote: freshQuote,
         userAddress,
       });
@@ -310,29 +271,6 @@ export async function handleSwapBuildTxPost(
       }
 
       const transactions = await buildUniswapSwapTransaction({
-        quote: freshQuote,
-        userAddress,
-      });
-
-      return NextResponse.json({
-        success: true,
-        data: boundBuildTxApprovals(transactions, exactApprovalAmount),
-      });
-    }
-
-    if (isDe1Quote(freshQuote)) {
-      if (!userAddress) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Missing userAddress for De1 swap",
-            code: SWAP_API_ERROR_CODES.INVALID_REQUEST,
-          },
-          { status: 400 },
-        );
-      }
-
-      const transactions = await buildDe1SwapTransaction({
         quote: freshQuote,
         userAddress,
       });

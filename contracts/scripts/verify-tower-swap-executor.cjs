@@ -28,6 +28,14 @@ async function main() {
         : `tower-swap-executor-${hre.network.name}-deployment.json`,
     ),
   );
+  const savedV2 = readJson(
+    path.join(
+      __dirname,
+      "..",
+      "deployments",
+      `tower-swap-executor-v2-${hre.network.name}-deployment.json`,
+    ),
+  );
 
   const savedAddress = saved?.executor;
   const envAddress = process.env.TOWER_SWAP_EXECUTOR_ADDRESS;
@@ -64,6 +72,12 @@ async function main() {
   if (!address) {
     throw new Error(
       "Set TOWER_SWAP_EXECUTOR_ADDRESS or deploy first so the mainnet deployment JSON exists.",
+    );
+  }
+
+  if (sameAddress(address, savedV2?.executor)) {
+    throw new Error(
+      "This address is TowerSwapExecutorV2. Use npm run verify:tower-swap-executor:v2:mainnet instead of the legacy V1 verification command.",
     );
   }
 

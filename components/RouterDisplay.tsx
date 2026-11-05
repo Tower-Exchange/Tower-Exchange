@@ -11,11 +11,9 @@ import quotesIcon from "@/public/assets/quotes icon.svg";
 import synthraLogo from "@/public/assets/synthralogo.svg";
 import towerLogo from "@/public/assets/Tower Logo.svg";
 import unitflowLogo from "@/public/assets/unitflow.svg";
-import xylonetLogo from "@/public/assets/xylonetlogo.svg";
 import aeroLogo from "@/public/assets/aero-icon 1.svg";
 import kyberLogo from "@/public/assets/kyber-logo-knc 1.svg";
 import uniswapLogo from "@/public/assets/Uniswap_icon_pink 1.svg";
-import de1Logo from "@/public/assets/de1.svg";
 import routeIcon from "@/public/assets/route icon.svg";
 
 interface RouteOption {
@@ -43,19 +41,13 @@ interface RouterDisplayProps {
 }
 
 type SupportedRouter = {
-  id: "xylonet-adapter" | "synthra" | "unitflow" | "tower-dex" | "aero" | "kyberswap" | "uniswap" | "de1";
+  id: "synthra" | "unitflow" | "tower-dex" | "aero" | "kyberswap" | "uniswap";
   aliases: string[];
   name: string;
   logo: StaticImageData | string;
 };
 
 const SUPPORTED_ROUTERS: SupportedRouter[] = [
-  {
-    id: "xylonet-adapter",
-    aliases: ["xylonet", "xylonet-adapter"],
-    name: "XyloNet",
-    logo: xylonetLogo,
-  },
   {
     id: "synthra",
     aliases: ["synthra", "synthra-v3"],
@@ -91,12 +83,6 @@ const SUPPORTED_ROUTERS: SupportedRouter[] = [
     aliases: ["uniswap", "uni", "uniswap-v4", "uniswap-v3"],
     name: "Uniswap",
     logo: uniswapLogo,
-  },
-  {
-    id: "de1",
-    aliases: ["de1", "de1-exchange", "de1exchange", "de¹"],
-    name: "De1",
-    logo: de1Logo,
   },
 ];
 

@@ -18,6 +18,10 @@ import {
 import { ARC_MAINNET_CONFIG, TOKEN_CONTRACTS } from "@/lib/arcNetwork";
 import { ARC_MAINNET_RPC_ENDPOINTS, ARC_MAINNET_RPC_PROXY_PATH } from "@/lib/arcRpc";
 import { BRIDGE_EURC_ADDRESSES } from "@/lib/bridgeNetworks";
+import {
+  encodeTowerSwapExecution,
+  getTowerSwapExecutorV2Address,
+} from "@/lib/towerSwapExecutorV2";
 
 export const AERO_DEX_ID = "aero" as const;
 export const AERO_DEX_NAME = "Aero" as const;
@@ -76,6 +80,7 @@ const resolveOptionalAeroAddress = (value?: string | null) =>
   value && isAddress(value) ? getAddress(value) : null;
 
 export const AERO_SWAP_EXECUTOR_ADDRESS =
+  getTowerSwapExecutorV2Address() ||
   resolveOptionalAeroAddress(
     process.env.NEXT_PUBLIC_TOWER_SWAP_EXECUTOR_MAINNET_ADDRESS ||
       process.env.TOWER_SWAP_EXECUTOR_MAINNET_ADDRESS,
@@ -83,7 +88,9 @@ export const AERO_SWAP_EXECUTOR_ADDRESS =
 
 export const AERO_ADAPTER_ADDRESS =
   resolveOptionalAeroAddress(
-    process.env.NEXT_PUBLIC_AERO_ADAPTER_MAINNET_ADDRESS ||
+    process.env.NEXT_PUBLIC_AERO_ADAPTER_V2_MAINNET_ADDRESS ||
+      process.env.AERO_ADAPTER_V2_MAINNET_ADDRESS ||
+      process.env.NEXT_PUBLIC_AERO_ADAPTER_MAINNET_ADDRESS ||
       process.env.AERO_ADAPTER_MAINNET_ADDRESS,
   ) || getAddress(AERO_ADAPTER_DEFAULT);
 
@@ -1289,22 +1296,19 @@ export async function buildAeroSwapTransaction(params: {
 
   const data =
     useAdapterPath && AERO_ADAPTER_ADDRESS
-      ? encodeFunctionData({
-          abi: TOWER_SWAP_EXECUTOR_ABI,
-          functionName: "executeSwap",
-          args: [
-            {
-              tokenIn,
-              tokenOut,
-              amountIn: amountInNative,
-              minAmountOut: minOutNative,
-              recipient: userAddress,
-              routeTarget: AERO_ADAPTER_ADDRESS,
-              approvalSpender: AERO_ADAPTER_ADDRESS,
-              routeCalldata,
-            },
-          ],
-        })
+      ? encodeTowerSwapExecution(
+          {
+            tokenIn,
+            tokenOut,
+            amountIn: amountInNative,
+            minAmountOut: minOutNative,
+            recipient: userAddress,
+            routeTarget: AERO_ADAPTER_ADDRESS,
+            approvalSpender: AERO_ADAPTER_ADDRESS,
+            routeCalldata,
+          },
+          deadline,
+        )
       : routeCalldata;
 
   return {

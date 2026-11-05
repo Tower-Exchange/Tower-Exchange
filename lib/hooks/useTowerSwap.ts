@@ -1,6 +1,4 @@
 import { useState, useCallback } from 'react';
-import type { Address } from "viem";
-import type { De1Quote } from "@/lib/de1Dex";
 
 export interface SwapQuote {
   inputToken: string;
@@ -49,37 +47,6 @@ export interface SwapQuote {
     destToken: string;
     providerName?: string;
   };
-  xylonet?: {
-    source: "lifi";
-    fromChain: number;
-    toChain: number;
-    integrator: string;
-    protocol: string;
-    approvalAddress: string;
-    srcDecimals: number;
-    destDecimals: number;
-    slippagePercent: number;
-    amount: string;
-    srcToken: string;
-    destToken: string;
-    quoteId?: string;
-    tool?: string;
-  };
-  de1?: {
-    source: "de1";
-    chain: "arc";
-    fromChain: number;
-    toChain: number;
-    exchange: string;
-    gasPriceDecimals: string;
-    inAmount: string;
-    outAmount: string;
-    priceImpact: string;
-    srcDecimals: number;
-    destDecimals: number;
-    expiresAt: number;
-    quotedAt: number;
-  };
   route: {
     type: 'single' | 'multi' | 'split';
     rawPath?: string;
@@ -88,7 +55,7 @@ export interface SwapQuote {
     hops: Array<{
       dexId: string; // DEX identifier from backend
       dex?: string;
-      dexName?: string; // Router name (e.g., "XyloNet Adapter", "Synthra")
+      dexName?: string; // Router name (e.g., "Aero", "Synthra")
       dexRouter?: string; // Router contract address
       path: string[];
       feeTier?: number;
@@ -148,67 +115,6 @@ interface UseTowerSwapOptions {
 
 const SWAP_API_BASE_URL = '/api/swap';
 const QUOTE_FETCH_TIMEOUT_MS = 14_000;
-const DE1_CHAIN_ID = 5042;
-
-const isDe1DexRequest = (dexId?: string) => {
-  const normalized = String(dexId || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_]+/g, "-");
-
-  return (
-    normalized === "de1" ||
-    normalized === "de1-exchange" ||
-    normalized === "de1exchange"
-  );
-};
-
-const fetchDe1QuoteInBrowser = async (params: {
-  inputToken: string;
-  outputToken: string;
-  inputAmount: string;
-  slippageBps: number;
-  chainId?: number;
-}): Promise<SwapQuote | null> => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    const { de1QuoteToSwapQuote, getDe1Quote } = await import("@/lib/de1Dex");
-    const de1Quote = await getDe1Quote({
-      inputToken: params.inputToken,
-      outputToken: params.outputToken,
-      inputAmount: params.inputAmount,
-      slippageBps: params.slippageBps,
-      chainId: params.chainId || DE1_CHAIN_ID,
-    });
-
-    return de1Quote ? de1QuoteToSwapQuote(de1Quote) : null;
-  } catch (error) {
-    console.warn("[useTowerSwap] browser De1 quote failed:", error);
-    return null;
-  }
-};
-
-const isDe1SwapQuote = (quote: SwapQuote) => quote.de1?.source === "de1";
-
-const buildDe1SwapTransactionInBrowser = async (
-  quote: SwapQuote,
-  userAddress: string,
-) => {
-  if (typeof window === "undefined") {
-    throw new Error("De1 swaps must be built in the browser.");
-  }
-
-  const { buildDe1SwapTransaction } = await import("@/lib/de1Dex");
-
-  return buildDe1SwapTransaction({
-    quote: quote as De1Quote,
-    userAddress: userAddress as Address,
-  });
-};
-
 /**
  * Custom hook for interacting with Tower Exchange DEX Aggregator backend
  * Handles quote fetching, transaction building, and approvals
@@ -244,21 +150,6 @@ export function useTowerSwap(_options: UseTowerSwapOptions = {}) {
           dexId,
           chainId,
         });
-
-        // De1's Cloudflare WAF blocks Railway server IPs with HTML 403s.
-        // The public API allows browser CORS, so quote De1 from the client.
-        if (isDe1DexRequest(dexId)) {
-          const browserDe1Quote = await fetchDe1QuoteInBrowser({
-            inputToken,
-            outputToken,
-            inputAmount,
-            slippageBps: slippageTolerance,
-            chainId,
-          });
-          if (browserDe1Quote) {
-            return browserDe1Quote;
-          }
-        }
 
         const controller = new AbortController();
         const timeoutId = window.setTimeout(
@@ -311,17 +202,12 @@ export function useTowerSwap(_options: UseTowerSwapOptions = {}) {
                     optionDexId === requestedDexId ||
                     (requestedDexId === "tower-dex" &&
                       (optionDexId === "tower" || optionDexId === "tower-amm")) ||
-                    (requestedDexId === "xylonet-adapter" &&
-                      (optionDexId === "xylonet" || optionDexId === "xylo")) ||
                     (requestedDexId === "kyberswap" &&
                       (optionDexId === "kyber" || optionDexId === "knc")) ||
                     (requestedDexId === "uniswap" &&
                       (optionDexId === "uni" ||
                         optionDexId === "uniswap-v4" ||
-                        optionDexId === "uniswap-v3")) ||
-                    (requestedDexId === "de1" &&
-                      (optionDexId === "de1-exchange" ||
-                        optionDexId === "de1exchange"))
+                        optionDexId === "uniswap-v3"))
                   );
                 })
               : null) || routeOptions[0];
@@ -414,21 +300,6 @@ export function useTowerSwap(_options: UseTowerSwapOptions = {}) {
       setError(null);
 
       try {
-        // De1 permits browser CORS but its Cloudflare WAF rejects requests
-        // originating from our production server. Build directly in-browser,
-        // just as we do when fetching a De1 quote.
-        if (isDe1SwapQuote(quote)) {
-          const transactions = await buildDe1SwapTransactionInBrowser(
-            quote,
-            userAddress,
-          );
-
-          return {
-            approval: transactions.approval || null,
-            swap: transactions.swap,
-          };
-        }
-
         const response = await fetch(`${swapApiBaseUrl}/build-tx`, {
           method: 'POST',
           headers: {

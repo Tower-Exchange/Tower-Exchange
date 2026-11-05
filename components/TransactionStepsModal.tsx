@@ -268,30 +268,32 @@ export const TransactionStepsModal = ({
                         <StepStatusIcon step={step} />
 
                         <div className="min-w-0 flex-1 pt-0.5">
-                          <span
-                            className={`block break-words text-[0.95rem] font-medium leading-snug sm:text-[0.98rem] ${
-                              step.status === "pending"
-                                ? "text-foreground/42"
-                                : "text-foreground"
-                            }`}
-                          >
-                            {step.label}
-                          </span>
+                          <div className="flex min-w-0 items-start justify-between gap-3">
+                            <span
+                              className={`min-w-0 flex-1 break-words text-[0.95rem] font-medium leading-snug sm:text-[0.98rem] ${
+                                step.status === "pending"
+                                  ? "text-foreground/42"
+                                  : "text-foreground"
+                              }`}
+                            >
+                              {step.label}
+                            </span>
 
-                          {detailStep?.id === step.id && step.detail ? (
-                            step.status === "failed" ? (
-                              <button
-                                type="button"
-                                onClick={() => setDismissedFailureMessage(null)}
-                                className="mt-1 text-left text-sm font-medium text-red-300 underline-offset-2 hover:underline"
-                              >
-                                View error
-                              </button>
-                            ) : (
-                              <span className="mt-1 block break-words text-sm leading-snug text-foreground">
+                            {detailStep?.id === step.id && step.detail && step.status !== "failed" ? (
+                              <span className="max-w-[52%] shrink-0 break-words text-right text-sm leading-snug text-foreground">
                                 {step.detail}
                               </span>
-                            )
+                            ) : null}
+                          </div>
+
+                          {detailStep?.id === step.id && step.detail && step.status === "failed" ? (
+                            <button
+                              type="button"
+                              onClick={() => setDismissedFailureMessage(null)}
+                              className="mt-1 text-left text-sm font-medium text-red-300 underline-offset-2 hover:underline"
+                            >
+                              View error
+                            </button>
                           ) : null}
                         </div>
                       </div>

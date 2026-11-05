@@ -109,7 +109,7 @@ export const isBridgeTokenSupportedOnChain = (
 
 export const BRIDGE_EXPLORER_TX_URLS: Record<string, string> = {
   "arc-testnet": "https://testnet.arcscan.app/tx/",
-  arc: "https://explorer.arc.io/tx/",
+  arc: "https://arc.etherscan.io/tx/",
   "base-sepolia": "https://sepolia.basescan.org/tx/",
   base: "https://basescan.org/tx/",
   "optimism-sepolia": "https://sepolia-optimism.etherscan.io/tx/",

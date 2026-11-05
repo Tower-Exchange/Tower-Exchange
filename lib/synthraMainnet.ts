@@ -17,7 +17,7 @@ import type { Address } from "viem";
 export const SYNTHRA_MAINNET_CHAIN_ID = 5042;
 export const SYNTHRA_MAINNET_PUBLIC_RPC_URL = "https://rpc.mainnet.arc.io";
 export const SYNTHRA_MAINNET_PROXY_RPC_PATH = "/api/rpc/5042";
-export const SYNTHRA_MAINNET_EXPLORER_URL = "https://explorer.arc.io";
+export const SYNTHRA_MAINNET_EXPLORER_URL = "https://arc.etherscan.io";
 
 export const synthraArcMainnet = {
   id: SYNTHRA_MAINNET_CHAIN_ID,

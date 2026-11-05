@@ -1,5 +1,5 @@
 export const ARC_TESTNET_EXPLORER_URL = "https://testnet.arcscan.app";
-export const ARC_MAINNET_EXPLORER_URL = "https://explorer.arc.io";
+export const ARC_MAINNET_EXPLORER_URL = "https://arc.etherscan.io";
 
 export const getArcExplorerUrl = (mode: "testnet" | "mainnet" = "mainnet") =>
   mode === "mainnet" ? ARC_MAINNET_EXPLORER_URL : ARC_TESTNET_EXPLORER_URL;

@@ -21,6 +21,11 @@ import {
 import { getArcMainnetRpcUrls } from "@/lib/arcRpc";
 import { getTokenDecimalsByAddress } from "@/lib/swapApiContract";
 import { isUniswapEnabled } from "@/lib/uniswapEnabled";
+import {
+  encodeTowerSwapExecution,
+  getTowerSwapExecutorV2Address,
+  isTowerSwapExecutorV2Enabled,
+} from "@/lib/towerSwapExecutorV2";
 
 export { isUniswapEnabled };
 
@@ -397,9 +402,6 @@ let executorFeeStateCache: {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const asString = (value: unknown) =>
-  typeof value === "string" && value.trim() ? value.trim() : null;
-
 const readErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
@@ -641,6 +643,8 @@ const encodeV4SwapCalldata = (params: {
 };
 
 export function getUniswapExecutorAddress(): Address {
+  const executorV2 = getTowerSwapExecutorV2Address();
+  if (executorV2) return executorV2;
   return (
     resolveOptionalAddress(
       process.env.NEXT_PUBLIC_TOWER_SWAP_EXECUTOR_MAINNET_ADDRESS ||
@@ -651,7 +655,9 @@ export function getUniswapExecutorAddress(): Address {
 
 export function getUniswapAdapterAddress(): Address | null {
   return resolveOptionalAddress(
-    process.env.NEXT_PUBLIC_UNISWAP_ADAPTER_MAINNET_ADDRESS ||
+    process.env.NEXT_PUBLIC_UNISWAP_ADAPTER_V2_MAINNET_ADDRESS ||
+      process.env.UNISWAP_ADAPTER_V2_MAINNET_ADDRESS ||
+      process.env.NEXT_PUBLIC_UNISWAP_ADAPTER_MAINNET_ADDRESS ||
       process.env.UNISWAP_ADAPTER_MAINNET_ADDRESS ||
       process.env.NEXT_PUBLIC_UNISWAP_ADAPTER_ADDRESS,
   );
@@ -672,7 +678,8 @@ const isAllowedUniswapRouteTarget = (target: Address) => {
     normalized === getUniswapRouterAddress().toLowerCase() ||
     normalized === UNISWAP_UNIVERSAL_ROUTER.toLowerCase() ||
     normalized === UNISWAP_UNIVERSAL_ROUTER_V4.toLowerCase() ||
-    normalized === UNISWAP_PERMIT2.toLowerCase()
+    (!isTowerSwapExecutorV2Enabled() &&
+      normalized === UNISWAP_PERMIT2.toLowerCase())
   );
 };
 
@@ -1472,22 +1479,19 @@ export async function buildUniswapSwapTransaction(params: {
     ],
   });
 
-  const swapData = encodeFunctionData({
-    abi: TOWER_SWAP_EXECUTOR_ABI,
-    functionName: "executeSwap",
-    args: [
-      {
-        tokenIn: srcToken,
-        tokenOut: destToken,
-        amountIn,
-        minAmountOut: minOutNative,
-        recipient: userAddress,
-        routeTarget: adapterAddress,
-        approvalSpender: adapterAddress,
-        routeCalldata: adapterCalldata,
-      },
-    ],
-  });
+  const swapData = encodeTowerSwapExecution(
+    {
+      tokenIn: srcToken,
+      tokenOut: destToken,
+      amountIn,
+      minAmountOut: minOutNative,
+      recipient: userAddress,
+      routeTarget: adapterAddress,
+      approvalSpender: adapterAddress,
+      routeCalldata: adapterCalldata,
+    },
+    deadline,
+  );
 
   const feeRecipient = params.quote.feeRecipient
     ? getAddress(params.quote.feeRecipient)
