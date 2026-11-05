@@ -1310,9 +1310,9 @@ const encodeUniswapRouteCalldata = (params: {
   quote: UniswapQuote;
   amountIn: bigint;
   minOut: bigint;
+  deadline: bigint;
 }) => {
   const meta = params.quote.uniswap;
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + SWAP_DEADLINE_SECONDS);
 
   if (meta.routeKind === "multi") {
     if (!meta.path || meta.path.length === 0) {
@@ -1335,7 +1335,7 @@ const encodeUniswapRouteCalldata = (params: {
         encodeSettleAll(getAddress(meta.srcToken), params.amountIn),
         encodeTakeAll(getAddress(meta.destToken), params.minOut),
       ],
-      deadline,
+      deadline: params.deadline,
     });
   }
 
@@ -1359,7 +1359,7 @@ const encodeUniswapRouteCalldata = (params: {
       encodeSettleAll(getAddress(meta.srcToken), params.amountIn),
       encodeTakeAll(getAddress(meta.destToken), params.minOut),
     ],
-    deadline,
+    deadline: params.deadline,
   });
 };
 
@@ -1384,6 +1384,9 @@ export async function buildUniswapSwapTransaction(params: {
   const routerAddress = getUniswapRouterAddress();
   const minOutNativeRaw = BigInt(params.quote.minOutNative || "0");
   const minOutNative = minOutNativeRaw > 0n ? minOutNativeRaw : 1n;
+  const deadline = BigInt(
+    Math.floor(Date.now() / 1000) + SWAP_DEADLINE_SECONDS,
+  );
   const approvalSpender = executorAddress;
   const approvalAmount = amountIn;
   let needsApproval = true;
@@ -1428,6 +1431,7 @@ export async function buildUniswapSwapTransaction(params: {
     quote: params.quote,
     amountIn: swapInputAmountNative,
     minOut: minOutNative,
+    deadline,
   });
 
   try {
