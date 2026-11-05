@@ -32,6 +32,7 @@ import {
   isDzapEnabled,
   isDzapSupportedChain,
 } from "@/lib/dzapClient";
+import { TOWER_DEX_ID, TOWER_DEX_NAME } from "./towerDex";
 export {
   DZAP_ARC_MAINNET_CHAIN_ID,
   DZAP_ARC_ROUTER_ADDRESS,
@@ -220,9 +221,9 @@ export type DzapQuote = {
     type: "single" | "multi";
     rawPath?: string;
     hops: Array<{
-      dexId: typeof DZAP_DEX_ID;
-      dex?: typeof DZAP_DEX_ID;
-      dexName: typeof DZAP_DEX_NAME;
+      dexId: typeof TOWER_DEX_ID;
+      dex?: typeof TOWER_DEX_ID;
+      dexName: typeof TOWER_DEX_NAME;
       dexRouter: string;
       path: string[];
       amountIn: string;
@@ -254,7 +255,8 @@ export type DzapSwapTransaction = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const asHexAddress = (value: string): HexString => getAddress(value) as HexString;
+const asHexAddress = (value: string): HexString =>
+  getAddress(value) as HexString;
 
 const toHexQuantity = (value: bigint | number | string) => {
   if (typeof value === "string" && value.startsWith("0x")) {
@@ -264,7 +266,11 @@ const toHexQuantity = (value: bigint | number | string) => {
   return `0x${BigInt(value).toString(16)}`;
 };
 
-const scaleAmount = (amount: bigint, fromDecimals: number, toDecimals: number) => {
+const scaleAmount = (
+  amount: bigint,
+  fromDecimals: number,
+  toDecimals: number,
+) => {
   if (fromDecimals === toDecimals) {
     return amount;
   }
@@ -277,7 +283,8 @@ const scaleAmount = (amount: bigint, fromDecimals: number, toDecimals: number) =
 const slippageBpsToPercent = (slippageBps: number) => slippageBps / 100;
 
 const parsePriceImpactBps = (value: string | number | undefined) => {
-  const parsed = typeof value === "number" ? value : Number.parseFloat(value || "0");
+  const parsed =
+    typeof value === "number" ? value : Number.parseFloat(value || "0");
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return 0;
   }
@@ -393,7 +400,7 @@ const getDzapQuoteCacheKey = (params: {
 }) =>
   `${params.chainId}:${params.srcToken.toLowerCase()}:${params.destToken.toLowerCase()}:${params.amount}:${params.slippageBps}`;
 
-const withTimeout = async <T,>(
+const withTimeout = async <T>(
   promise: Promise<T>,
   timeoutMs: number,
   message: string,
@@ -449,7 +456,10 @@ const fetchDzapTradeQuotes = async (body: Record<string, unknown>) => {
       );
     }
 
-    if (response.status === 429 || (isRecord(payload) && payload.code === "RATE_LIMITED")) {
+    if (
+      response.status === 429 ||
+      (isRecord(payload) && payload.code === "RATE_LIMITED")
+    ) {
       markDzapRateLimited(parseRetryAfterMs(response, payload), "HTTP 429");
       const message =
         (isRecord(payload) &&
@@ -514,7 +524,9 @@ const resolveOptionalAddress = (value?: string | null) =>
 
 const parseTowerSwapFeeBps = (value?: string | null) => {
   const parsed = Number.parseInt(value || "", 10);
-  return Number.isFinite(parsed) && parsed >= 0 && parsed <= Number(BPS_DENOMINATOR)
+  return Number.isFinite(parsed) &&
+    parsed >= 0 &&
+    parsed <= Number(BPS_DENOMINATOR)
     ? parsed
     : DEFAULT_TOWER_SWAP_FEE_BPS;
 };
@@ -620,7 +632,8 @@ async function getDzapExecutorFeeState(
       }),
     ]);
 
-    const feeBps = Number(onChainFeeBps) > 0 ? Number(onChainFeeBps) : DZAP_SWAP_FEE_BPS;
+    const feeBps =
+      Number(onChainFeeBps) > 0 ? Number(onChainFeeBps) : DZAP_SWAP_FEE_BPS;
     const resolvedTreasury =
       treasury && isAddress(treasury) && treasury.toLowerCase() !== zeroAddress
         ? getAddress(treasury)
@@ -709,7 +722,10 @@ const pickTradeQuote = (quotes: TradeQuotesResponse) => {
         };
       }
 
-      if (protocol === pair.recommendedSource || protocol === pair.bestReturnSource) {
+      if (
+        protocol === pair.recommendedSource ||
+        protocol === pair.bestReturnSource
+      ) {
         break;
       }
     }
@@ -740,7 +756,10 @@ const getRouterAddress = async (
       return getAddress(address);
     }
   } catch (error) {
-    console.warn("[DZap] router lookup failed, using Arc default:", readErrorMessage(error));
+    console.warn(
+      "[DZap] router lookup failed, using Arc default:",
+      readErrorMessage(error),
+    );
   }
 
   return getAddress(DZAP_ARC_ROUTER_ADDRESS);
@@ -860,11 +879,11 @@ export async function getDzapQuote(params: {
       ? executorFeeStateCache.get(feeCacheKey)
       : undefined;
     const feeState = canCollectExecutorFee
-      ? cachedFeeState?.state ?? {
+      ? (cachedFeeState?.state ?? {
           enabled: true,
           feeBps: DZAP_SWAP_FEE_BPS,
           treasury: DZAP_SWAP_FEE_RECIPIENT,
-        }
+        })
       : disabledFeeState;
     if (canCollectExecutorFee && executorAddress && !cachedFeeState) {
       void getDzapExecutorFeeState(params.chainId, executorAddress);
@@ -888,7 +907,10 @@ export async function getDzapQuote(params: {
         : undefined;
 
     try {
-      if (isDzapRateLimited() || dzapConcurrentQuotes >= DZAP_MAX_CONCURRENT_QUOTES) {
+      if (
+        isDzapRateLimited() ||
+        dzapConcurrentQuotes >= DZAP_MAX_CONCURRENT_QUOTES
+      ) {
         return staleCachedQuote ?? null;
       }
 
@@ -961,14 +983,26 @@ export async function getDzapQuote(params: {
       const mappedQuote: DzapQuote = {
         inputToken: srcToken,
         outputToken: destToken,
-        inputAmount: scaleAmount(amountIn, srcDecimals, NORMALIZED_DECIMALS).toString(),
+        inputAmount: scaleAmount(
+          amountIn,
+          srcDecimals,
+          NORMALIZED_DECIMALS,
+        ).toString(),
         swapInputAmount: scaleAmount(
           swapInputAmountNative,
           srcDecimals,
           NORMALIZED_DECIMALS,
         ).toString(),
-        outputAmount: scaleAmount(amountOut, destDecimals, NORMALIZED_DECIMALS).toString(),
-        minOut: scaleAmount(minOut, destDecimals, NORMALIZED_DECIMALS).toString(),
+        outputAmount: scaleAmount(
+          amountOut,
+          destDecimals,
+          NORMALIZED_DECIMALS,
+        ).toString(),
+        minOut: scaleAmount(
+          minOut,
+          destDecimals,
+          NORMALIZED_DECIMALS,
+        ).toString(),
         inputAmountNative: amountIn.toString(),
         swapInputAmountNative: swapInputAmountNative.toString(),
         outputAmountNative: amountOut.toString(),
@@ -985,17 +1019,25 @@ export async function getDzapQuote(params: {
           : undefined,
         platformFeeAmount:
           platformFeeAmountNative > 0n
-            ? scaleAmount(platformFeeAmountNative, srcDecimals, NORMALIZED_DECIMALS).toString()
+            ? scaleAmount(
+                platformFeeAmountNative,
+                srcDecimals,
+                NORMALIZED_DECIMALS,
+              ).toString()
             : undefined,
         platformFeeAmountNative:
-          platformFeeAmountNative > 0n ? platformFeeAmountNative.toString() : undefined,
+          platformFeeAmountNative > 0n
+            ? platformFeeAmountNative.toString()
+            : undefined,
         dzap: {
           source: DZAP_QUOTE_SOURCE,
           fromChain: params.chainId,
           toChain: params.chainId,
           protocol: selected.protocol,
           bestReturnSource: selected.bestReturnSource,
-          additionalInfo: quote.additionalInfo as Record<string, unknown> | undefined,
+          additionalInfo: quote.additionalInfo as
+            | Record<string, unknown>
+            | undefined,
           srcDecimals,
           destDecimals,
           slippagePercent,
@@ -1056,7 +1098,10 @@ export async function getDzapQuote(params: {
     return inflightQuote;
   }
 
-  if (isDzapRateLimited() || dzapConcurrentQuotes >= DZAP_MAX_CONCURRENT_QUOTES) {
+  if (
+    isDzapRateLimited() ||
+    dzapConcurrentQuotes >= DZAP_MAX_CONCURRENT_QUOTES
+  ) {
     return null;
   }
 
@@ -1090,7 +1135,9 @@ export async function buildDzapSwapTransaction(params: {
   const adapterAddress = getDzapAdapterAddress(meta.fromChain);
   const executorAddress = getDzapExecutorAddress(meta.fromChain);
   const useFeePath = params.quote.feeMode === TOWER_SWAP_FEE_MODE;
-  const useAdapterPath = Boolean(useFeePath && adapterAddress && executorAddress);
+  const useAdapterPath = Boolean(
+    useFeePath && adapterAddress && executorAddress,
+  );
   const minOutNativeRaw = BigInt(params.quote.minOutNative || "0");
   const minOutNative =
     minOutNativeRaw > 0n ? minOutNativeRaw : useAdapterPath ? 1n : 0n;
@@ -1153,7 +1200,9 @@ export async function buildDzapSwapTransaction(params: {
   const built = await withTimeout(
     client.buildTradeTxn({
       fromChain: meta.fromChain,
-      sender: asHexAddress(useAdapterPath ? (adapterAddress as Address) : userAddress),
+      sender: asHexAddress(
+        useAdapterPath ? (adapterAddress as Address) : userAddress,
+      ),
       refundee: asHexAddress(
         useAdapterPath ? (executorAddress as Address) : userAddress,
       ),
@@ -1192,7 +1241,8 @@ export async function buildDzapSwapTransaction(params: {
     meta.fromChain === DZAP_ARC_MAINNET_CHAIN_ID &&
     isTowerSwapExecutorV2Enabled();
   const isAllowedDzapRouteTarget =
-    dzapRouteTarget.toLowerCase() === getAddress(DZAP_ARC_ROUTER_ADDRESS).toLowerCase() ||
+    dzapRouteTarget.toLowerCase() ===
+      getAddress(DZAP_ARC_ROUTER_ADDRESS).toLowerCase() ||
     (!usesV2Executor &&
       dzapRouteTarget.toLowerCase() === DZAP_PERMIT2_ADDRESS.toLowerCase());
   if (useAdapterPath && !isAllowedDzapRouteTarget) {
@@ -1232,8 +1282,8 @@ export async function buildDzapSwapTransaction(params: {
     : null;
 
   const updatedDestAmount = Object.values(
-    (built as { updatedQuotes?: Record<string, unknown> } | null)?.updatedQuotes ||
-      {},
+    (built as { updatedQuotes?: Record<string, unknown> } | null)
+      ?.updatedQuotes || {},
   )[0];
   const rawExpectedOutput =
     updatedDestAmount ||
