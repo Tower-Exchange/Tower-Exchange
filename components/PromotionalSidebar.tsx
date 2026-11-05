@@ -85,15 +85,30 @@ export default function PromotionalSidebar() {
     //     }, 50);
     //   }
     // },
+    // {
+    //   id: "claude-mcp-trade",
+    //   heroImage: "/assets/tradeonclaude.svg",
+    //   imageWidthClass: "w-[125px]",
+    //   title: "Trade on Claude AI",
+    //   description: "Connect Tower’s MCP to your personal AI agent and start trading stablecoins seamlessly.",
+    //   ctaText: "Try it Now",
+    //   action: () => {
+    //     window.open("https://docs.tower.exchange/mcp", "_blank", "noopener,noreferrer");
+    //   }
+    // },
     {
-      id: "claude-mcp-trade",
-      heroImage: "/assets/tradeonclaude.svg",
+      id: "mxnb-trade",
+      heroImage: "/assets/TradeMXNB.svg",
       imageWidthClass: "w-[125px]",
-      title: "Trade on Claude AI",
-      description: "Connect Tower’s MCP to your personal AI agent and start trading stablecoins seamlessly.",
-      ctaText: "Try it Now",
+      title: "Trade $MXNB on Tower",
+      description: "MXNB, Bitso’s Mexican Peso stablecoin backed 1:1 by real MXN, is now available for trading on Tower.",
+      ctaText: "Trade MXNB",
       action: () => {
-        window.open("https://docs.tower.exchange/mcp", "_blank", "noopener,noreferrer");
+        router.push("/?select=MXNB");
+        setTimeout(() => {
+          const event = new CustomEvent("select-sell-token", { detail: { symbol: "MXNB" } });
+          window.dispatchEvent(event);
+        }, 50);
       }
     },
     {
