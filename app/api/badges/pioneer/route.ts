@@ -5,6 +5,10 @@ import {
   type PioneerBadgeId,
   type PioneerBadgeStatus,
 } from "@/lib/pioneerBadge";
+import {
+  isBadgeClaimingEnabled,
+  BADGE_CLAIMING_DISABLED_MESSAGE,
+} from "@/lib/badgeClaimingEnabled";
 
 export const runtime = "nodejs";
 
@@ -263,6 +267,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isBadgeClaimingEnabled()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: BADGE_CLAIMING_DISABLED_MESSAGE,
+        },
+        { status: 403 },
+      );
+    }
+
     const { walletAddress, badgeId } = await parseBadgeRequest(request);
     const validationError = validateRequest(walletAddress, badgeId);
 

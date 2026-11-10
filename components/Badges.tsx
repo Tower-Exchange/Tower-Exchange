@@ -25,6 +25,7 @@ import {
   type PioneerBadgeId,
   type PioneerBadgeStatus,
 } from "@/lib/pioneerBadge";
+import { isBadgeClaimingEnabled } from "@/lib/badgeClaimingEnabled";
 
 type Badge = {
   id: string;
@@ -437,11 +438,13 @@ const BadgeDetailsModal = ({
                     >
                       {badge.isClaimed
                         ? "Claimed"
-                        : isClaiming
-                          ? "Claiming Badge..."
-                          : isCheckingEligibility
-                            ? "Checking Eligibility..."
-                            : "Claim Badge"}
+                        : !isBadgeClaimingEnabled()
+                          ? "Claiming Paused"
+                          : isClaiming
+                            ? "Claiming Badge..."
+                            : isCheckingEligibility
+                              ? "Checking Eligibility..."
+                              : "Claim Badge"}
                     </button>
                     {claimError ? (
                       <p className="mt-2 text-center text-sm font-medium text-[#ff9a9a]">
@@ -949,7 +952,9 @@ const Badges = ({
       : null;
   const isClaimingPioneerBadge =
     selectedPioneerBadgeId === claimingPioneerBadgeId;
+  const isClaimingEnabled = isBadgeClaimingEnabled();
   const canClaimPioneerBadge =
+    isClaimingEnabled &&
     isWalletConnected &&
     Boolean(normalizedWalletAddress) &&
     Boolean(selectedPioneerBadgeId) &&
@@ -958,6 +963,7 @@ const Badges = ({
     !isCheckingPioneerBadges &&
     !isClaimingPioneerBadge;
   const canClaimSquireBadge =
+    isClaimingEnabled &&
     isWalletConnected &&
     Boolean(normalizedWalletAddress) &&
     squireBadgeStatus?.isEligible === true &&
@@ -971,12 +977,14 @@ const Badges = ({
     squireBadgeStatus?.isClaimed === true;
   const claimButtonLabel = squireBadgeStatus?.isClaimed
     ? "Claimed"
-    : isCheckingSquireBadge
+    : !isClaimingEnabled
+      ? "Claiming Paused"
+      : isCheckingSquireBadge
         ? "Checking..."
         : "Claim Badge";
 
   const handleClaimSquireBadge = async () => {
-    if (!normalizedWalletAddress || !canClaimSquireBadge) {
+    if (!isClaimingEnabled || !normalizedWalletAddress || !canClaimSquireBadge) {
       return;
     }
 
@@ -1009,6 +1017,7 @@ const Badges = ({
 
   const handleClaimPioneerBadge = async () => {
     if (
+      !isClaimingEnabled ||
       !normalizedWalletAddress ||
       !selectedPioneerBadgeId ||
       !canClaimPioneerBadge

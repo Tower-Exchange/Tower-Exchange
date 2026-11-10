@@ -4,6 +4,10 @@ import {
   hasSquireBadgeClaimAllowlist,
   isSquireBadgeClaimAllowlisted,
 } from "@/lib/server/squireBadgeClaimAllowlist";
+import {
+  isBadgeClaimingEnabled,
+  BADGE_CLAIMING_DISABLED_MESSAGE,
+} from "@/lib/badgeClaimingEnabled";
 
 const BADGE_ID = "squire";
 const EVM_WALLET_ADDRESS_PATTERN = /^0x[a-f0-9]{40}$/;
@@ -393,6 +397,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isBadgeClaimingEnabled()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: BADGE_CLAIMING_DISABLED_MESSAGE,
+        },
+        { status: 403 },
+      );
+    }
+
     const walletAddress = await parseWalletRequest(request);
     const validationError = validateWalletAddress(walletAddress);
 
