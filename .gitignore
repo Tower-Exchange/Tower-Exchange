@@ -68,3 +68,4 @@ scripts/legion-verify-smoke.mjs
 docs/olympix-remediation-report.md
 docs/openapi-public-swap-updates.md
 *.example
+.env.local.example
